@@ -3165,7 +3165,7 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
   </entry>
   <entry>
     <title>Vulnhub-DC-6</title>
-    <url>/2025/04/05/DC-6/</url>
+    <url>/2025/04/12/DC-6/</url>
     <content><![CDATA[<h1 id="DC-6"><a href="#DC-6" class="headerlink" title="DC-6"></a>DC-6</h1><h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://download.vulnhub.com/dc/DC-6.zip</span><br></pre></td></tr></table></figure>
 
