@@ -3550,6 +3550,9 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
 
 <p><img src="/assets/network-asset-1750051914014-1351e988-a797-487b-ab92-1f2aad2acd91-20250616133605-ldfa2zb.png"></p>
 ]]></content>
+      <categories>
+        <category>CTF-WP</category>
+      </categories>
       <tags>
         <tag>CTF-WP</tag>
       </tags>
@@ -4054,6 +4057,66 @@ payload 如下：</p>
 <p>拿到 hash之后使用 hash 在线解密工具解，即可得到用户密码 solar2025</p>
 <p><img src="https://img.51shazhu.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250727/dqZO/2152X589/assets/image-20250726172858-98oyj5t.png"></p>
 <p>后面三题没看出来，期待一下 WP</p>
+]]></content>
+      <categories>
+        <category>CTF-WP</category>
+      </categories>
+      <tags>
+        <tag>CTF-WP</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>2025-MinecraftCTF-取证WP</title>
+    <url>/2025/08/25/2025-MinecraftCTF-%E5%8F%96%E8%AF%81WP/</url>
+    <content><![CDATA[<blockquote>
+<p><strong>题目描述</strong></p>
+<p>Geek团队运营着一个大型的Minecraft多人服务器，拥有超过5000名注册玩家。2025年8月11日下午，服务器管理员收到多名玩家举报，称服务器出现异常行为，技术在排查后发现服务器文件被勒索组织投放了勒索病毒，导致文件被加密，技术将服务器内存镜像打包交给专业网络安全团队极安云科进行排查，请你协助公司方进行排查。</p>
+</blockquote>
+<h2 id="取证-1-1"><a href="#取证-1-1" class="headerlink" title="取证-1.1"></a>取证-1.1</h2><blockquote>
+<p>请提交攻击者IP</p>
+</blockquote>
+<p>查看网络信息，除了第二题的那个外联 IP，还剩下这个，提交就对了</p>
+<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250825/gulR/1779X598/assets/image-20250822210555-obcqtvu.png"></p>
+<h2 id="取证-2-1"><a href="#取证-2-1" class="headerlink" title="取证-2.1"></a>取证-2.1</h2><blockquote>
+<p>请提交攻击者外联IP和端口</p>
+</blockquote>
+<p>查看网络信息，发现 word.exe 进程有外联 IP 和端口，猜测为攻击者钓鱼所用</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">MCCTF&#123;66.240.205.34:9002&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250825/x4jV/1786X889/assets/image-20250822094351-9ebeflu.png"></p>
+<h2 id="取证-3-1"><a href="#取证-3-1" class="headerlink" title="取证-3.1"></a>取证-3.1</h2><blockquote>
+<p>请提交该服务器皮肤上传系统中发现的webshell绝对路径（含文件名）</p>
+</blockquote>
+<p>查看文件时间线，翻一下可以看到 phpstudy_pro 目录，在 uploads 目录下有一个 shell.php 文件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">MCCTF&#123;C:/phpstudy_pro/WWW/uploads/shell.php&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250825/rC5n/1785X882/assets/image-20250822102742-tspc0u4.png"></p>
+<h2 id="取证-4-1"><a href="#取证-4-1" class="headerlink" title="取证-4.1"></a>取证-4.1</h2><blockquote>
+<p>请提交该服务器勒索病毒名称</p>
+</blockquote>
+<p>在 uploads 目录下除了有 webshell 文件，还有 LB3 开头的一系列文件</p>
+<p>检索发现这个是勒索病毒加密程序：<a href="https://blog.csdn.net/solarset/article/details/143715300">【病毒分析】Lockbit 3.0勒索病毒加密程序分析_lockbit3.0-CSDN博客</a></p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">MCCTF&#123;LockBit 3.0&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250825/RjEc/1372X740/assets/image-20250822103312-006gc0f.png"></p>
+<h2 id="取证-5-1"><a href="#取证-5-1" class="headerlink" title="取证-5.1"></a>取证-5.1</h2><blockquote>
+<p>请提提交该勒索组织留下的浏览器地址的顶级域名，如：.com</p>
+</blockquote>
+<p>用 vol2 查看进程列表，筛选一下 notepad.exe 进程，右键 <code>进程转储toDmp</code> 提取 notepad.exe 的进程</p>
+<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250825/EN69/1790X765/assets/image-20250822164307-kdmz1yt.png"></p>
+<p>导出后使用 strings 命令提取 dmp 文件的可见字符串，找到勒索信部分内容，顶级域名为 .onion</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">strings .\2092.dmp &gt; 1.txt</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20250825/sxxh/1886X886/assets/image-20250822180820-2yr79za.png"></p>
+<h2 id="取证-6-1"><a href="#取证-6-1" class="headerlink" title="取证-6.1"></a>取证-6.1</h2><blockquote>
+<p>请提交该服务器网站日志内flag</p>
+</blockquote>
+<p>根据上面分析我们可以知道勒索病毒加密程序是 <code>LockBit 3.0</code>，在 github 上找到项目 <a href="https://github.com/Tennessene/LockBit">Tennessene&#x2F;LockBit: The LockBit builder files</a>，下载下来</p>
+<p>在 <code>C:/phpstudy_pro/WWW/uploads/</code> 目录下还有 <code>priv.key</code> 和 <code>pub.key</code></p>
+<p>这里之后官方给的解法是通过拉下来的 buildr 生成解密器，运行后自动遍历加密文件并解密</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">builder -type dec -privkey %cd%\Build\priv.key -config config.json -ofile %cd%\Build\LB3Decryptor.exe</span><br></pre></td></tr></table></figure>
+
+<p>但是无法复现出来，就这吧，了解一下即可</p>
 ]]></content>
       <categories>
         <category>CTF-WP</category>
