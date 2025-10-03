@@ -3382,7 +3382,7 @@ flag 值：flag{48ad0cde8345c8b2608933ac4e85147e}</p>
   </entry>
   <entry>
     <title>极核靶场通关</title>
-    <url>/2025/10/03/%E6%9E%81%E6%A0%B8%E9%9D%B6%E5%9C%BA%E9%80%9A%E5%85%B3/</url>
+    <url>/2025/02/15/%E6%9E%81%E6%A0%B8%E9%9D%B6%E5%9C%BA%E9%80%9A%E5%85%B3/</url>
     <content><![CDATA[<h2 id="Mysql-密码爆破"><a href="#Mysql-密码爆破" class="headerlink" title="Mysql - 密码爆破"></a>Mysql - 密码爆破</h2><p>已经指定目标用户名为 root，使用 hydra 工具爆破密码</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l root -P /usr/share/wordlists/rockyou.txt mysql://node.hackhub.get-shell.com:51236 -t 4</span><br></pre></td></tr></table></figure>
 
