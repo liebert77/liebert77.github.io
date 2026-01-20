@@ -1,3 +1,5 @@
+@import url("https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-screen-webfont/1.7.0/lxgwwenkaiscreenr.css");
+
 /* 页脚与头图透明 */
 #footer {
     background: transparent !important;
@@ -53,4 +55,9 @@
 #footer {
     /* 以下代表透明度为0.1*/
     background: rgba(255, 255, 255, .1);
+}
+
+/* 强制使用 LXGW WenKai Screen 字体，覆盖主题默认字体 */
+body {
+    font-family: "LXGW WenKai Screen R", sans-serif !important;
 }
