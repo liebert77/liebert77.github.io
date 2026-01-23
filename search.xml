@@ -891,7 +891,7 @@
   </entry>
   <entry>
     <title>Vulnhub-DC-6</title>
-    <url>/2025/04/12/DC-6/</url>
+    <url>/2025/04/13/DC-6/</url>
     <content><![CDATA[<h1 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h1><p>vulnhub 下载此靶机，下载地址如下：</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">https://download.vulnhub.com/dc/DC-6.zip<br></code></pre></td></tr></table></figure>
 
