@@ -2,6 +2,15 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://liebert77.github.io/about/</loc>
+    
+    <lastmod>2026-08-24</lastmod>
+    
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
     <loc>https://liebert77.github.io/posts/557344d5/</loc>
     
     <lastmod>2026-08-24</lastmod>
@@ -401,15 +410,6 @@
     <loc>https://liebert77.github.io/posts/39575d75/</loc>
     
     <lastmod>2026-08-24</lastmod>
-    
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <url>
-    <loc>https://liebert77.github.io/about/</loc>
-    
-    <lastmod>2026-01-20</lastmod>
     
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
