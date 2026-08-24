@@ -57,6 +57,36 @@
     background: rgba(255, 255, 255, .1);
 }
 
+/* 文章内表格样式 */
+#article-container table {
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, .08);
+}
+
+#article-container th {
+    background: #3a86ff;
+    color: #fff;
+    font-weight: 600;
+    padding: 10px 16px;
+    border: 1px solid #3a86ff;
+}
+
+#article-container td {
+    background: rgba(255, 255, 255, .85);
+    padding: 8px 14px;
+    border: 1px solid #e8eaed;
+}
+
+#article-container tr:nth-child(even) td {
+    background: rgba(246, 248, 250, .85);
+}
+
+#article-container tr:hover td {
+    background: rgba(233, 241, 253, .9);
+}
+
 /* 强制使用 LXGW WenKai Screen 字体，覆盖主题默认字体 */
 body {
     font-family: "LXGW WenKai Screen R", sans-serif !important;
