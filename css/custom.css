@@ -5,6 +5,9 @@
 /* 字体：霞鹜文楷 Screen（国内 npm 镜像） */
 @import url("https://npm.onmicrosoft.cn/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaiscreenr.css");
 
+/* NOTE: 修改 _config.butterfly.yml 中 height_limit 后，
+   必须同步更新下方第 4 节「代码块」中的 max-height 值（当前 280px = 230 + 50）。 */
+
 /* ------------------------------------------
    1. 全局透明度
    ------------------------------------------ */
@@ -12,10 +15,10 @@
 /* 所有卡片 / 文章页背景 */
 #aside_content .card-widget,
 #recent-posts > .recent-post-item,
-.layout_page > div:first-child:not(.recent-posts),
-.layout_post > #page,
-.layout_post > #post,
-.read-mode .layout_post > #post {
+.layout > div:first-child:not(.recent-posts),
+#post,
+#page,
+.read-mode #post {
     background: rgba(255, 255, 255, .9);
 }
 
@@ -23,11 +26,9 @@
    2. 头图 & 页脚透明 & 背景遮罩
    ------------------------------------------ */
 
-/* 背景图片加一层暗色遮罩 */
-#web_bg {
-    position: relative;
-}
-
+/* 背景图片加一层暗色遮罩
+   注意：#web_bg 由主题设为 position:fixed，fixed 本身就能
+   作为 ::after 的定位参考，不需要额外加 position:relative */
 #web_bg::after {
     content: "";
     position: absolute;
@@ -67,7 +68,6 @@
 
 #article-container table {
     border-collapse: collapse;
-    overflow: hidden;
     border-radius: 8px;
     box-shadow: 0 1px 6px rgba(0, 0, 0, .08);
 }
@@ -107,11 +107,11 @@
     padding: 0 !important;
 }
 
-/* 代码块横向滚动（移动端+桌面端）
-   问题根因：主题给 figure.highlight table 设了 display:block，
-   导致 table 宽度被父容器限制，内容无法溢出，滚动条出不来。
-   修复：figure 上设 overflow-x:auto，table 保持 display:table
-   让内容自然撑开宽度，pre/code 强制 white-space:pre 不换行。 */
+/* 代码块横向滚动 + shrink + 折叠
+   三者共存的关键：
+   - table 设为 display:table 才能横向滚动（display:block 会限制宽度）
+   - 高度限制必须设在 figure 上（display:table 上 max-height 行为未定义，CSS 2.1）
+   - 折叠时显式设 display:none 覆盖 display:table */
 #article-container figure.highlight {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -120,6 +120,19 @@
 #article-container figure.highlight table {
     display: table !important;
     width: auto !important;
+}
+
+/* 工具栏折叠：强制隐藏 table（覆盖上方的 display:table） */
+#article-container figure.highlight .highlight-tools.closed ~ table {
+    display: none !important;
+}
+
+/* 高度限制：必须对 figure（display:block）设 max-height。
+   CSS 2.1 规定 display:table 上 max-height 行为未定义，设了也白设。
+   280px = height_limit(230) + 工具栏(~50px)，改配置需同步此处。 */
+#article-container figure.highlight:has(.code-expand-btn:not(.expand-done)) {
+    overflow-y: hidden !important;
+    max-height: 280px;
 }
 
 #article-container figure.highlight .code pre,
