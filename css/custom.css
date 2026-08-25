@@ -14,6 +14,7 @@
 
 /* 所有卡片 / 文章页背景 */
 #aside_content .card-widget,
+#recent-posts,
 #recent-posts > .recent-post-item,
 .layout > div:first-child:not(.recent-posts),
 #post,
