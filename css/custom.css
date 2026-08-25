@@ -108,6 +108,18 @@
     padding: 0 !important;
 }
 
+/* 代码块横向滚动（移动端+桌面端） */
+#article-container .highlight {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+#article-container .highlight > pre,
+#article-container .highlight > .code {
+    white-space: pre !important;
+    word-wrap: normal !important;
+}
+
 /* ------------------------------------------
    4. 字体
    注：霞鹜文楷 Screen 通过上方 @import 从 npm.onmicrosoft.cn 加载，
