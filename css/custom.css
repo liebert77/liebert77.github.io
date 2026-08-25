@@ -108,16 +108,28 @@
     padding: 0 !important;
 }
 
-/* 代码块横向滚动（移动端+桌面端） */
-#article-container .highlight {
+/* 代码块横向滚动（移动端+桌面端）
+   问题根因：主题给 figure.highlight table 设了 display:block，
+   导致 table 宽度被父容器限制，内容无法溢出，滚动条出不来。
+   修复：figure 上设 overflow-x:auto，table 保持 display:table
+   让内容自然撑开宽度，pre/code 强制 white-space:pre 不换行。 */
+#article-container figure.highlight {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
 }
 
-#article-container .highlight > pre,
-#article-container .highlight > .code {
+#article-container figure.highlight table {
+    display: table !important;
+    width: auto !important;
+}
+
+#article-container figure.highlight .code pre,
+#article-container figure.highlight .code code,
+#article-container figure.highlight .gutter pre {
     white-space: pre !important;
     word-wrap: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
 }
 
 /* ------------------------------------------
