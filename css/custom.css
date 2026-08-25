@@ -9,11 +9,6 @@
    1. 全局透明度
    ------------------------------------------ */
 
-/* 侧边栏卡片透明度 */
-:root {
-    --card-bg: rgba(255, 255, 255, .9);
-}
-
 /* 所有卡片 / 文章页背景 */
 #aside_content .card-widget,
 #recent-posts > .recent-post-item,
@@ -29,6 +24,10 @@
    ------------------------------------------ */
 
 /* 背景图片加一层暗色遮罩 */
+#web_bg {
+    position: relative;
+}
+
 #web_bg::after {
     content: "";
     position: absolute;
