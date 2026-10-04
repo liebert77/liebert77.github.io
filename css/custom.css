@@ -2,8 +2,9 @@
    custom.css — Liebert77 Blog 自定义样式
    ============================================ */
 
-/* 字体：霞鹜文楷 Screen（jsDelivr CDN） */
-@import url("https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaiscreenr.css");
+/* 霞鹜文楷字体通过 HTML head 中的 link 异步加载（非阻塞），
+   详见 _config.butterfly.yml 的 inject.head 配置。
+   font-display: swap 确保字体加载期间先用系统字体显示。 */
 
 /* NOTE: 修改 _config.butterfly.yml 中 height_limit 后，
    必须同步更新下方第 4 节「代码块」中的 max-height 值（当前 280px = 230 + 50）。 */
