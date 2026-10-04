@@ -6450,4 +6450,131 @@ payload 如下：</p>
         <tag>靶场通关</tag>
       </tags>
   </entry>
+  <entry>
+    <title>DeepSeek Harness配置指南</title>
+    <url>/posts/d65c70a4/</url>
+    <content><![CDATA[<h2 id="一、Harness-是什么"><a href="#一、Harness-是什么" class="headerlink" title="一、Harness 是什么"></a>一、Harness 是什么</h2><figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">Agent = 大模型 + Harness<br></code></pre></td></tr></table></figure>
+
+<p>大模型负责推理，Harness 负责把模型放进工作环境：给工具、文件权限、上下文、任务循环和插件。</p>
+<p>DeepSeek Harness 的核心理念是 <strong>“Everything is a Plugin”（一切皆插件）</strong>，模型、工具、界面都能拆开换掉。驱动插件体系的内核叫 <strong>Cordis</strong>。</p>
+<h2 id="二、安装与启动"><a href="#二、安装与启动" class="headerlink" title="二、安装与启动"></a>二、安装与启动</h2><h3 id="准备"><a href="#准备" class="headerlink" title="准备"></a>准备</h3><ul>
+<li><strong>Node.js ≥ 22</strong>（官网下 LTS 版）</li>
+<li><strong>DeepSeek API Key</strong>：在官网 <a href="https://platform.deepseek.com/api_keys">https://platform.deepseek.com/api_keys</a> 创建</li>
+</ul>
+<h3 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h3><p>建议全局安装，以后直接 <code>dsh web</code> 启动：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">npm install -g @deepseek-ai/dsh<br>dsh web<br></code></pre></td></tr></table></figure>
+
+<h3 id="首次配置"><a href="#首次配置" class="headerlink" title="首次配置"></a>首次配置</h3><ol>
+<li>浏览器打开后，填入 DeepSeek API Key 并保存</li>
+<li>选择一个<strong>空文件夹</strong>作为工作区</li>
+<li>发条消息测试</li>
+</ol>
+<p><img src="https://img2.tofaka.com/autoupload/41kgv/20261004/folder-mutdlewc-dhzc7rmb/assets/image-20260818200945-5t6yfb0.png"></p>
+<h2 id="三、模式选择"><a href="#三、模式选择" class="headerlink" title="三、模式选择"></a>三、模式选择</h2><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>能力</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>标准模式</strong></td>
+<td>全套工具，正常写代码改仓库</td>
+<td>日常任务</td>
+</tr>
+<tr>
+<td><strong>PTC 模式</strong></td>
+<td>把多步操作合成一次 TypeScript 调用</td>
+<td>批量操作、省 token</td>
+</tr>
+<tr>
+<td><strong>极简模式</strong></td>
+<td>只留两样：持久 bash + str_replace_editor</td>
+<td>上下文最小、改文件做小改动、模型评测</td>
+</tr>
+<tr>
+<td><strong>创造模式</strong></td>
+<td>标准能力 + 运行时自省、试插件、写 Agent preset</td>
+<td>定制自己的 Agent</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>推荐</strong>：轻量用就选<strong>极简模式</strong>；日常开发用标准模式；需要批量操作再上 PTC。</p>
+</blockquote>
+<h2 id="四、插件系统"><a href="#四、插件系统" class="headerlink" title="四、插件系统"></a>四、插件系统</h2><h3 id="安装命令"><a href="#安装命令" class="headerlink" title="安装命令"></a>安装命令</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">dsh plugin --profile web add &quot;github:owner/repo#main&quot;<br></code></pre></td></tr></table></figure>
+
+<p>装完 <strong>Ctrl + C 停止服务</strong>，重新启动并刷新页面才生效。</p>
+<h3 id="插件推荐"><a href="#插件推荐" class="headerlink" title="插件推荐"></a>插件推荐</h3><h4 id="核心体验"><a href="#核心体验" class="headerlink" title="核心体验"></a>核心体验</h4><table>
+<thead>
+<tr>
+<th>插件</th>
+<th>简介</th>
+<th>安装命令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>dsh-web-ui-all</strong></td>
+<td>一站式全家桶：任务看板+Git图谱+Token统计+皮肤中心+侧边栏工作台+手机远程+电子宠物</td>
+<td><code>dsh plugin --profile web add @linxin666/dsh-web-ui-all</code></td>
+</tr>
+</tbody></table>
+<p><img src="https://img2.tofaka.com/autoupload/41kgv/20261004/folder-mutdlewc-dhzc7rmb/assets/image-20260818212634-5zu97af.png"></p>
+<h4 id="交互方式"><a href="#交互方式" class="headerlink" title="交互方式"></a>交互方式</h4><table>
+<thead>
+<tr>
+<th>插件</th>
+<th>简介</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>deepseek-harness-desktop</strong></td>
+<td>Electron 桌面 App，无需 Node.js 双击即用</td>
+</tr>
+<tr>
+<td><strong>dsh-at-file</strong></td>
+<td>输入 <code>@</code> 弹出文件列表，自动附加内容</td>
+</tr>
+</tbody></table>
+<h4 id="能力扩展"><a href="#能力扩展" class="headerlink" title="能力扩展"></a>能力扩展</h4><table>
+<thead>
+<tr>
+<th>插件</th>
+<th>简介</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>ModLens</strong></td>
+<td>给纯文本模型装眼睛，贴图能看</td>
+</tr>
+<tr>
+<td><strong>dsh-agent-teams</strong></td>
+<td>多智能体团队协作，自然语言驱动</td>
+</tr>
+<tr>
+<td><strong>dsh-plan-execute</strong></td>
+<td>规划用推理模型、执行用经济模型，降本增效</td>
+</tr>
+<tr>
+<td><strong>dsh-context-doctor</strong></td>
+<td>量化上下文 token 成本，检测重复冲突</td>
+</tr>
+<tr>
+<td><strong>dsh-reverse-skill</strong></td>
+<td>85 个安全研究技能包，逆向&#x2F;渗透</td>
+</tr>
+</tbody></table>
+<h3 id="插件市场"><a href="#插件市场" class="headerlink" title="插件市场"></a>插件市场</h3><ul>
+<li><strong>官方插件</strong>：<a href="https://github.com/topics/dsh-plugin">dsh-plugin · GitHub Topics</a></li>
+<li><strong>Oh-My-DSH</strong>：<a href="https://github.com/like-study1/Oh-My-DSH">https://github.com/like-study1/Oh-My-DSH</a></li>
+<li><strong>Awesome DSH Plugin</strong>：<a href="https://github.com/awesome-dsh-plugin/awesome-dsh-plugin">https://github.com/awesome-dsh-plugin/awesome-dsh-plugin</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>技术杂项</category>
+      </categories>
+      <tags>
+        <tag>技术杂项</tag>
+      </tags>
+  </entry>
 </search>
