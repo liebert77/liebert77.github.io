@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://liebert77.github.io/sitemap.xml
