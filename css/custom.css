@@ -2,8 +2,8 @@
    custom.css — Liebert77 Blog 自定义样式
    ============================================ */
 
-/* 字体：霞鹜文楷 Screen（国内 npm 镜像） */
-@import url("https://npm.onmicrosoft.cn/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaiscreenr.css");
+/* 字体：霞鹜文楷 Screen（jsDelivr CDN） */
+@import url("https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaiscreenr.css");
 
 /* NOTE: 修改 _config.butterfly.yml 中 height_limit 后，
    必须同步更新下方第 4 节「代码块」中的 max-height 值（当前 280px = 230 + 50）。 */
@@ -147,7 +147,7 @@
 
 /* ------------------------------------------
    4. 字体
-   注：霞鹜文楷 Screen 通过上方 @import 从 npm.onmicrosoft.cn 加载，
+   注：霞鹜文楷 Screen 通过上方 @import 从 cdn.jsdelivr.net 加载，
    这里只声明 fallback 链。
    ------------------------------------------ */
 
