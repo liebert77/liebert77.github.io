@@ -155,3 +155,41 @@
 body {
     font-family: "LXGW WenKai Screen R", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
+
+
+/* ------------------------------------------
+   5. 夜间模式(dark)适配
+   ------------------------------------------
+   主题 dark 模式只覆盖了代码高亮变量，--card-bg 等仍为白色；
+   下方覆盖把卡片、文章表格切到深色，保证白字可读。 */
+
+/* 卡片 / 文章容器：深色半透明，跟随 dark 文字色 */
+[data-theme="dark"] #aside_content .card-widget,
+[data-theme="dark"] #recent-posts,
+[data-theme="dark"] #recent-posts > .recent-post-item,
+[data-theme="dark"] .layout > div:first-child:not(.recent-posts),
+[data-theme="dark"] #post,
+[data-theme="dark"] #page,
+[data-theme="dark"] .read-mode #post {
+    background: rgba(30, 32, 40, .92);
+}
+
+/* 文章表格 */
+[data-theme="dark"] #article-container th {
+    background: #1e2029;
+    color: #d5d8e0;
+    border-color: #33363f;
+}
+
+[data-theme="dark"] #article-container td {
+    background: rgba(30, 32, 41, .85);
+    border-color: #2f323b;
+}
+
+[data-theme="dark"] #article-container tr:nth-child(even) td {
+    background: rgba(38, 40, 50, .85);
+}
+
+[data-theme="dark"] #article-container tr:hover td {
+    background: rgba(45, 48, 60, .9);
+}
