@@ -6,8 +6,37 @@
    详见 _config.butterfly.yml 的 inject.head 配置。
    font-display: swap 确保字体加载期间先用系统字体显示。 */
 
-/* NOTE: 修改 _config.butterfly.yml 中 height_limit 后，
-   必须同步更新下方第 4 节「代码块」中的 max-height 值（当前 280px = 230 + 50）。 */
+/* ------------------------------------------
+   0. 可调参数（集中在一处，改这里即可）
+   ------------------------------------------
+   原先深/浅两套颜色写成两遍选择器，容易改一处漏一处；
+   现在统一走 CSS 变量，[data-theme="dark"] 只覆盖变量值。
+   代码块高度：--l77-code-max-height 需与主题 height_limit 保持一致
+   （height_limit + 工具栏约 50px）。 */
+:root {
+  --l77-card-bg: rgba(255, 255, 255, .9);
+  --l77-th-bg: #e8f0fe;
+  --l77-th-color: #333;
+  --l77-th-border: #d0d9e4;
+  --l77-td-bg: rgba(255, 255, 255, .85);
+  --l77-td-border: #e8eaed;
+  --l77-td-bg-alt: rgba(246, 248, 250, .85);
+  --l77-td-bg-hover: rgba(233, 241, 253, .9);
+  --l77-code-max-height: 280px; /* = height_limit(230) + 工具栏(~50) */
+}
+
+[data-theme="dark"] {
+  /* 主题 dark 模式只覆盖代码高亮变量，--card-bg 等仍为白色，
+     这里把卡片/表格统一切到深色，保证白字可读 */
+  --l77-card-bg: rgba(30, 32, 40, .92);
+  --l77-th-bg: #1e2029;
+  --l77-th-color: #d5d8e0;
+  --l77-th-border: #33363f;
+  --l77-td-bg: rgba(30, 32, 41, .85);
+  --l77-td-border: #2f323b;
+  --l77-td-bg-alt: rgba(38, 40, 50, .85);
+  --l77-td-bg-hover: rgba(45, 48, 60, .9);
+}
 
 /* ------------------------------------------
    1. 全局透明度
@@ -21,7 +50,7 @@
 #post,
 #page,
 .read-mode #post {
-    background: rgba(255, 255, 255, .9);
+    background: var(--l77-card-bg);
 }
 
 /* ------------------------------------------
@@ -66,40 +95,60 @@
 
 /* ------------------------------------------
    3. 文章内 Markdown 表格
-   ------------------------------------------ */
-
+   ------------------------------------------
+   注：border-collapse: collapse 会让 border-radius 完全失效，
+   改用 separate + border-spacing: 0，圆角才会真正显示出来。 */
 #article-container table {
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     border-radius: 8px;
+    overflow: hidden;
     box-shadow: 0 1px 6px rgba(0, 0, 0, .08);
 }
 
 #article-container th {
-    background: #e8f0fe;
-    color: #333;
+    background: var(--l77-th-bg);
+    color: var(--l77-th-color);
     font-weight: 600;
     padding: 10px 16px;
-    border: 1px solid #d0d9e4;
+    border: 1px solid var(--l77-th-border);
 }
 
 #article-container td {
-    background: rgba(255, 255, 255, .85);
+    background: var(--l77-td-bg);
     padding: 8px 14px;
-    border: 1px solid #e8eaed;
+    border: 1px solid var(--l77-td-border);
+}
+
+/* 窄屏：上面的 overflow: hidden 会把超宽的表格直接裁掉且无法滑动查看
+   （端口/命令对照表在手机上必然溢出行宽）。改为块级 + 横向滚动：
+   display:block 让 overflow 能生效，内部行仍按表格布局渲染。 */
+@media screen and (max-width: 768px) {
+    #article-container table {
+        display: block;
+        width: fit-content;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 }
 
 #article-container tr:nth-child(even) td {
-    background: rgba(246, 248, 250, .85);
+    background: var(--l77-td-bg-alt);
 }
 
 #article-container tr:hover td {
-    background: rgba(233, 241, 253, .9);
+    background: var(--l77-td-bg-hover);
 }
 
 /* 代码块也用了 <table>，必须排除 */
 #article-container .highlight table {
     border-radius: 0 !important;
     box-shadow: none !important;
+    /* 还原代码块表格原本的合并边框，避免上面的 separate 影响行号对齐 */
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    overflow: visible !important;
 }
 
 #article-container .highlight th,
@@ -131,10 +180,11 @@
 
 /* 高度限制：必须对 figure（display:block）设 max-height。
    CSS 2.1 规定 display:table 上 max-height 行为未定义，设了也白设。
-   280px = height_limit(230) + 工具栏(~50px)，改配置需同步此处。 */
+   改主题 height_limit 时同步修改顶部 --l77-code-max-height。
+   不支持 :has() 的旧浏览器（Firefox <121 等）会降级为不折叠，不影响阅读。 */
 #article-container figure.highlight:has(.code-expand-btn:not(.expand-done)) {
     overflow-y: hidden !important;
-    max-height: 280px;
+    max-height: var(--l77-code-max-height);
 }
 
 #article-container figure.highlight .code pre,
@@ -148,48 +198,11 @@
 
 /* ------------------------------------------
    4. 字体
-   注：霞鹜文楷 Screen 通过上方 @import 从 cdn.jsdelivr.net 加载，
-   这里只声明 fallback 链。
+   注：本文件里没有 @import。霞鹜文楷 Screen 是在
+   _config.butterfly.yml 的 inject.head 里用 preload + onload 异步引入的
+   （不阻塞渲染，另有 <noscript> 兜底），这里只声明 fallback 链。
    ------------------------------------------ */
 
 body {
     font-family: "LXGW WenKai Screen R", "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-
-/* ------------------------------------------
-   5. 夜间模式(dark)适配
-   ------------------------------------------
-   主题 dark 模式只覆盖了代码高亮变量，--card-bg 等仍为白色；
-   下方覆盖把卡片、文章表格切到深色，保证白字可读。 */
-
-/* 卡片 / 文章容器：深色半透明，跟随 dark 文字色 */
-[data-theme="dark"] #aside_content .card-widget,
-[data-theme="dark"] #recent-posts,
-[data-theme="dark"] #recent-posts > .recent-post-item,
-[data-theme="dark"] .layout > div:first-child:not(.recent-posts),
-[data-theme="dark"] #post,
-[data-theme="dark"] #page,
-[data-theme="dark"] .read-mode #post {
-    background: rgba(30, 32, 40, .92);
-}
-
-/* 文章表格 */
-[data-theme="dark"] #article-container th {
-    background: #1e2029;
-    color: #d5d8e0;
-    border-color: #33363f;
-}
-
-[data-theme="dark"] #article-container td {
-    background: rgba(30, 32, 41, .85);
-    border-color: #2f323b;
-}
-
-[data-theme="dark"] #article-container tr:nth-child(even) td {
-    background: rgba(38, 40, 50, .85);
-}
-
-[data-theme="dark"] #article-container tr:hover td {
-    background: rgba(45, 48, 60, .9);
 }

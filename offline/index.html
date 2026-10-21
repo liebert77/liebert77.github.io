@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,follow">
+<title>离线 - Liebert77 Blog</title>
+<style>
+  :root { --bg: #f5f5f5; --card: #ffffff; --fg: #2c2c2c; --muted: #6b6b6b; --line: #e2e2e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1a1a; --card: #242424; --fg: #e8e8e8; --muted: #9a9a9a; --line: #353535; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .card {
+    max-width: 420px; width: 100%; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 32px 28px; text-align: center;
+  }
+  h1 { margin: 0 0 12px; font-size: 19px; font-weight: 500; }
+  p { margin: 0 0 10px; font-size: 14px; line-height: 1.7; color: var(--muted); }
+  a {
+    display: inline-block; margin-top: 16px; padding: 8px 20px;
+    border: 1px solid var(--line); border-radius: 8px;
+    color: var(--fg); text-decoration: none; font-size: 14px;
+  }
+  a:hover { border-color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>当前处于离线状态</h1>
+  <p>这个页面还没有被缓存，恢复网络后即可正常访问。</p>
+  <p>此前浏览过的文章仍可从本地缓存中打开。</p>
+  <a href="/">返回首页</a>
+</div>
+</body>
+</html>
