@@ -10,6 +10,17 @@
 
   var started = false;
 
+  /* Butterfly 的 lazyload 会把封面换成 1x1 占位图、真实地址放在 data-lazy-src。
+   * Swiper 的 loop 会克隆幻灯片，克隆体里的占位图不会被懒加载库替换，
+   * 结果卡片左侧空白。初始化后统一还原一次。 */
+  function restoreCovers(root) {
+    var imgs = root.querySelectorAll('img[data-lazy-src]');
+    for (var i = 0; i < imgs.length; i++) {
+      var real = imgs[i].getAttribute('data-lazy-src');
+      if (real && imgs[i].src !== real) imgs[i].src = real;
+    }
+  }
+
   function boot() {
     if (started) return;
 
@@ -42,6 +53,9 @@
     el.addEventListener('mouseleave', function () {
       if (swiper.autoplay) swiper.autoplay.start();
     });
+
+    restoreCovers(el);
+    setTimeout(function () { restoreCovers(el); }, 500);
 
     var timer;
     window.addEventListener('resize', function () {
